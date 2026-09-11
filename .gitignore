@@ -1,7 +1,7 @@
 node_modules/
 .env
 identifiants_*.json
-data/
+/data/
 *.log
 dist/
 .DS_Store
