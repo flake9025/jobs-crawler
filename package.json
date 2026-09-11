@@ -1,0 +1,20 @@
+{
+  "name": "sophia-jobs-crawler",
+  "version": "1.0.0",
+  "description": "Recherche d'emploi agrégée sur la zone de Sophia Antipolis (PWA + backend Node)",
+  "type": "module",
+  "main": "src/server/index.js",
+  "scripts": {
+    "start": "node src/server/index.js",
+    "dev": "node --watch src/server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}

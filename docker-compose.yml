@@ -1,0 +1,16 @@
+services:
+  sophia-jobs:
+    build: .
+    image: sophia-jobs-crawler:latest
+    container_name: sophia-jobs
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - PORT=8080
+      - CACHE_FILE=/app/data/companies-cache.json
+    volumes:
+      # Persiste le cache des offres entre redéploiements (créez ce dossier sur le NAS).
+      - ./data:/app/data

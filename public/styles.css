@@ -1,0 +1,104 @@
+:root {
+  --bg: #0a2540;
+  --bg-2: #0d2c4d;
+  --card: #ffffff;
+  --accent: #00b4d8;
+  --accent-2: #0077b6;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #f4f6f8;
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background: linear-gradient(135deg, var(--bg), var(--bg-2));
+  color: #fff;
+  padding: 20px 16px;
+}
+.brand { display: flex; align-items: center; gap: 14px; max-width: 860px; margin: 0 auto; }
+.logo { font-size: 32px; color: var(--accent); }
+.header h1 { margin: 0; font-size: 22px; }
+.subtitle { margin: 2px 0 0; font-size: 13px; opacity: 0.85; }
+
+.container { flex: 1; width: 100%; max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+
+.search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.search-bar input {
+  flex: 1; padding: 14px 16px; font-size: 16px;
+  border: 1px solid var(--border); border-radius: 10px; outline: none;
+  background: #fff;
+}
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,180,216,.15); }
+.search-bar button {
+  padding: 0 22px; font-size: 15px; font-weight: 600; color: #fff; cursor: pointer;
+  background: var(--accent-2); border: none; border-radius: 10px;
+  transition: background .15s;
+}
+.search-bar button:hover { background: #005f8a; }
+.search-bar button:disabled { opacity: .6; cursor: default; }
+
+.status { padding: 12px 14px; border-radius: 8px; background: #eef6fb; color: #0369a1; font-size: 14px; margin-bottom: 16px; }
+.status.error { background: #fef2f2; color: #b91c1c; }
+
+.results { display: flex; flex-direction: column; gap: 12px; }
+
+.results-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 14px; flex-wrap: wrap;
+}
+#results-summary { font-size: 14px; color: var(--muted); }
+.export-btn {
+  font-size: 14px; font-weight: 600; color: #fff; cursor: pointer;
+  background: #16794a; border: none; border-radius: 8px; padding: 9px 16px;
+  transition: background .15s;
+}
+.export-btn:hover { background: #0f5d38; }
+.export-btn:disabled { opacity: .5; cursor: default; }
+
+.job-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; box-shadow: var(--shadow); text-decoration: none; color: inherit;
+  display: block; transition: transform .1s, box-shadow .1s;
+}
+.job-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.job-top { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+.job-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--bg); }
+.job-score {
+  flex-shrink: 0; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  background: #e0f7fa; color: #006978;
+}
+.job-meta { margin: 6px 0 0; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.job-meta .company { font-weight: 600; color: var(--text); }
+.job-meta .exp { font-weight: 600; color: #0369a1; background: #eef6fb; padding: 1px 8px; border-radius: 6px; }
+.job-source { display: inline-block; margin-top: 8px; font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #f1f5f9; color: #475569; }
+.job-desc { margin: 10px 0 0; font-size: 13px; color: #4b5563; line-height: 1.5; }
+
+.links-panel { margin-top: 22px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 4px 14px; }
+.links-panel summary { cursor: pointer; padding: 10px 0; font-weight: 600; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0 14px; }
+.chip {
+  font-size: 13px; padding: 7px 12px; border-radius: 999px; text-decoration: none;
+  background: #eef2f7; color: var(--accent-2); border: 1px solid var(--border);
+}
+.chip:hover { background: #e0ecf5; }
+
+.empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+
+.footer { text-align: center; padding: 16px; font-size: 12px; color: var(--muted); }
+
+@media (max-width: 520px) {
+  .search-bar { flex-direction: column; }
+  .search-bar button { padding: 12px; }
+}

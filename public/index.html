@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a2540" />
+    <meta name="description" content="Recherche d'emploi agrégée sur la zone de Sophia Antipolis" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Sophia Jobs — Emploi à Sophia Antipolis</title>
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <span class="logo">◆</span>
+        <div>
+          <h1>Sophia Jobs</h1>
+          <p class="subtitle">Recherche d'emploi sur la zone de Sophia Antipolis</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <form id="search-form" class="search-bar">
+        <input
+          id="query"
+          type="search"
+          placeholder="Intitulé de poste (ex: développeur, data engineer, chef de projet…)"
+          autocomplete="off"
+          required
+        />
+        <button type="submit" id="search-btn">Rechercher</button>
+      </form>
+
+      <div id="status" class="status" hidden></div>
+
+      <div id="results-toolbar" class="results-toolbar" hidden>
+        <span id="results-summary"></span>
+        <button id="export-btn" type="button" class="export-btn">⬇ Exporter Excel</button>
+      </div>
+
+      <section id="results" class="results" aria-live="polite"></section>
+
+      <details id="links-panel" class="links-panel" hidden>
+        <summary>Liens de recherche directs sur les grands sites</summary>
+        <div id="search-links" class="chips"></div>
+      </details>
+
+      <details id="company-panel" class="links-panel" hidden>
+        <summary>Entreprises de Sophia avec une offre correspondante</summary>
+        <div id="company-links" class="chips"></div>
+      </details>
+    </main>
+
+    <footer class="footer">
+      <span id="company-count"></span>
+      <span> · Données : France Travail, APEC, HelloWork, WTTJ, entreprises locales</span>
+    </footer>
+
+    <script src="/vendor/xlsx.full.min.js"></script>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
