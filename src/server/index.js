@@ -160,6 +160,16 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
+// --- Garde-fous ---
+// Le crawl touche des milliers de sites tiers : une erreur asynchrone isolée ne
+// doit jamais faire tomber le conteneur (et perdre le crawl en cours).
+process.on("unhandledRejection", (reason) => {
+  console.error("[fatal] promesse rejetée non gérée :", reason?.message || reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[fatal] exception non interceptée :", err?.message || err);
+});
+
 // --- Démarrage ---
 async function start() {
   await loadCache();

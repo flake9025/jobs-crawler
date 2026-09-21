@@ -18,6 +18,8 @@ import { config } from "./config.js";
 let state = {
   updatedAt: null,
   refreshing: false,
+  // true quand le cache est un instantané pris au milieu d'un crawl interrompu.
+  partial: false,
   jobs: [],
   // Statistiques par entreprise (catalogue de sources).
   companies: [],
@@ -31,22 +33,36 @@ export async function loadCache() {
     const raw = await fs.readFile(config.cache.file, "utf-8");
     const parsed = JSON.parse(raw);
     state.updatedAt = parsed.updatedAt || null;
+    state.partial = Boolean(parsed.partial);
     state.jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
     state.companies = Array.isArray(parsed.companies) ? parsed.companies : [];
-    console.log(`[cache] chargé : ${state.jobs.length} offres (maj ${state.updatedAt || "jamais"})`);
+    console.log(
+      `[cache] chargé : ${state.jobs.length} offres (maj ${state.updatedAt || "jamais"}${
+        state.partial ? ", crawl interrompu" : ""
+      })`
+    );
   } catch {
     console.log("[cache] aucun cache existant, démarrage à vide.");
   }
 }
 
-/** Persiste le cache sur disque. */
+/**
+ * Persiste le cache sur disque.
+ * `partial` marque un instantané pris pendant un crawl : au redémarrage, le cache
+ * sera considéré comme périmé afin que le crawl reprenne au lieu de rester figé.
+ */
 async function persist() {
   try {
     await fs.mkdir(path.dirname(config.cache.file), { recursive: true });
     await fs.writeFile(
       config.cache.file,
       JSON.stringify(
-        { updatedAt: state.updatedAt, jobs: state.jobs, companies: state.companies },
+        {
+          updatedAt: state.updatedAt,
+          partial: state.partial,
+          jobs: state.jobs,
+          companies: state.companies,
+        },
         null,
         0
       ),
@@ -62,6 +78,19 @@ export async function setCacheJobs(jobs, companies = null) {
   state.jobs = jobs;
   if (Array.isArray(companies)) state.companies = companies;
   state.updatedAt = new Date().toISOString();
+  state.partial = false;
+  await persist();
+}
+
+/**
+ * Instantané intermédiaire pendant un crawl : les offres déjà trouvées deviennent
+ * immédiatement consultables et survivent à un redémarrage du conteneur.
+ */
+export async function saveCheckpoint(jobs, companies) {
+  state.jobs = [...jobs];
+  state.companies = [...companies];
+  state.updatedAt = new Date().toISOString();
+  state.partial = true;
   await persist();
 }
 
@@ -86,6 +115,7 @@ export function getCacheStatus() {
   return {
     updatedAt: state.updatedAt,
     refreshing: state.refreshing,
+    partial: state.partial,
     count: state.jobs.length,
     progress: state.progress,
   };
@@ -95,9 +125,17 @@ export function setRefreshing(v) {
   state.refreshing = v;
 }
 
-/** Le cache est-il périmé (ou vide) ? */
+/**
+ * Le cache est-il périmé (ou vide) ?
+ * On force également un refresh quand le cache provient d'une version antérieure
+ * (pas de statistiques par entreprise) : sans ça, un vieux cache « frais » empêchait
+ * tout crawl au démarrage et la page de statut restait figée.
+ */
 export function isStale() {
   if (!state.updatedAt) return true;
+  if (!state.companies.length) return true;
+  // Crawl interrompu (redémarrage du conteneur) : on reprend sans attendre.
+  if (state.partial) return true;
   const ageMin = (Date.now() - new Date(state.updatedAt).getTime()) / 60000;
   return ageMin >= config.cache.staleMinutes;
 }

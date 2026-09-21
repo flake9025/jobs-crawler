@@ -8,9 +8,10 @@
  *     le SITE WEB de chaque fiche : c'est lui qui permet de crawler les offres.
  *
  * Usage :
- *   npm run fetch:companies              # annuaires uniquement
- *   npm run fetch:companies -- --resolve # + tente de deviner les sites manquants
- *   npm run fetch:companies -- --limit=200 --resolve
+ *   npm run fetch:companies                # annuaires uniquement
+ *   npm run fetch:companies -- --discover  # + recherche les sites manquants (nom -> domaine)
+ *   npm run fetch:companies -- --resume --discover --discover-limit=500
+ *   npm run fetch:companies -- --resolve   # + devine les sites par nom de domaine (peu rentable)
  *
  * Le fichier généré est commité : le conteneur n'a pas besoin de rejouer ce script.
  */
@@ -33,6 +34,8 @@ const getOpt = (name, fallback) => {
 };
 
 const RESOLVE = hasFlag("--resolve");
+const DISCOVER = hasFlag("--discover");
+const DISCOVER_LIMIT = parseInt(getOpt("discover-limit", "0"), 10);
 const LIMIT = parseInt(getOpt("limit", "0"), 10);
 const CONCURRENCY = parseInt(getOpt("concurrency", "12"), 10);
 const TIMEOUT_MS = parseInt(getOpt("timeout", "15000"), 10);
@@ -377,7 +380,127 @@ async function resolveSites(companies) {
   console.log(`[resolve] ${found} sites web découverts.`);
 }
 
+// ---------------------------------------------------------------------------
+// Découverte des sites manquants (--discover)
+//
+// Les moteurs de recherche généralistes bloquent tous les accès automatisés et
+// leur scraping viole leurs CGU. On passe donc par l'API publique d'autocomplétion
+// d'entreprises (nom -> domaine), puis on valide DEUX FOIS pour éviter de rattacher
+// à une entreprise de Sophia le site d'une homonyme à l'autre bout du monde :
+//   1. le nom de domaine (ou la raison sociale renvoyée) doit correspondre au nom ;
+//   2. le site doit être ancré localement : mention explicite d'une commune de la
+//      zone sur l'accueil ou une page contact/mentions légales. Un simple domaine
+//      .fr ne suffit pas : l'essai a montré trop d'homonymes (« La Cigogne » ->
+//      un site alsacien, « La Poste » -> laposte.fr…), et une offre mal rattachée
+//      pollue durablement les résultats de recherche.
+// ---------------------------------------------------------------------------
+const SUGGEST_API = "https://autocomplete.clearbit.com/v1/companies/suggest?query=";
+
+// Attention : « sophia » seul ne suffit pas — il apparaît dans le nom de beaucoup
+// d'entreprises (« Hotel Sophia » validait un hôtel australien). On exige le nom
+// complet de la technopole, une commune voisine ou un code postal des A.-M.
+const LOCAL_GEO =
+  /\b(sophia[- ]?antipolis|valbonne|antibes|juan[- ]les[- ]pins|biot|mougins|vallauris|golfe[- ]juan|le ?rouret|opio|roquefort[- ]les[- ]pins|villeneuve[- ]loubet|chateauneuf[- ]grasse|alpes[- ]maritimes|06[0-9]{3})\b/i;
+
+const CONTACT_PATHS = [
+  "/contact",
+  "/fr/contact",
+  "/nous-contacter",
+  "/mentions-legales",
+  "/contact-us",
+  "/a-propos",
+];
+
+const alphaNum = (s = "") =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
+/** Le domaine proposé correspond-il vraiment au nom de l'entreprise ? */
+function suggestionMatches(companyName, suggestion) {
+  const wanted = alphaNum(normalizeForDomain(companyName));
+  // Noms trop courts ou trop génériques : trop de risques d'homonymie.
+  if (wanted.length < 5) return false;
+  const label = alphaNum(suggestion.domain.split(".")[0]);
+  const suggested = alphaNum(suggestion.name);
+  const close = (a, b) =>
+    (a.includes(b) || b.includes(a)) &&
+    Math.min(a.length, b.length) / Math.max(a.length, b.length) >= 0.85;
+  return label === wanted || close(label, wanted) || close(suggested, wanted);
+}
+
+async function suggestDomains(name) {
+  const raw = await fetchText(SUGGEST_API + encodeURIComponent(name), "application/json");
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter((s) => s?.domain) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Le site est-il bien celui d'une entreprise de la zone ? */
+async function verifyLocalSite(domain) {
+  let home = null;
+  for (const url of [`https://${domain}`, `https://www.${domain}`]) {
+    const html = await fetchText(url);
+    if (html && html.length > 500) {
+      home = { url, html };
+      break;
+    }
+  }
+  if (!home) return null;
+  if (/(nom de domaine (est )?(a vendre|en vente)|domain (is )?for sale|buy this domain)/i.test(home.html)) {
+    return null;
+  }
+
+  if (LOCAL_GEO.test(home.html)) return home.url;
+
+  for (const p of CONTACT_PATHS) {
+    const html = await fetchText(home.url + p);
+    if (html && LOCAL_GEO.test(html)) return home.url;
+  }
+  return null;
+}
+
+async function discoverSites(companies) {
+  let targets = companies.filter((c) => !c.site);
+  if (DISCOVER_LIMIT > 0) targets = targets.slice(0, DISCOVER_LIMIT);
+  console.log(`[discover] recherche d'un site pour ${targets.length} entreprises…`);
+  let found = 0;
+
+  await pool(
+    targets,
+    async (company) => {
+      const suggestions = await suggestDomains(company.name);
+      const candidate = suggestions.find((s) => suggestionMatches(company.name, s));
+      if (!candidate) return false;
+      const url = await verifyLocalSite(candidate.domain);
+      if (!url) return false;
+      company.site = url;
+      company.sources = [...new Set([...(company.sources || []), "discover"])];
+      found++;
+      return true;
+    },
+    {
+      concurrency: Math.max(CONCURRENCY, 8),
+      onProgress: async (d, t) => {
+        process.stdout.write(`\r  ${d}/${t} testées — ${found} sites découverts`);
+        if (d % 250 === 0) await save(companies);
+      },
+    }
+  );
+
+  process.stdout.write("\n");
+  console.log(`[discover] ${found} sites web découverts et validés.`);
+}
+
 async function save(companies) {
+  // Garde-fou : un essai à blanc (--limit) ne doit jamais écraser l'annuaire complet.
+  if (LIMIT > 0) return;
   await fs.writeFile(OUT_FILE, JSON.stringify(companies, null, 0), "utf-8");
 }
 
@@ -431,15 +554,22 @@ async function main() {
   if (LIMIT > 0) companies = companies.slice(0, LIMIT);
 
   if (RESOLVE) await resolveSites(companies);
+  if (DISCOVER) await discoverSites(companies);
 
-  await save(companies);
+  // --limit sert aux essais : on ne réécrit pas l'annuaire complet avec un extrait.
+  if (LIMIT > 0) {
+    console.log(`\n⚠️  --limit=${LIMIT} : essai à blanc, src/data/companies.json n'est PAS modifié.`);
+  } else {
+    await save(companies);
+  }
 
   const withSite = companies.filter((c) => c.site).length;
+  const target = LIMIT > 0 ? "(essai à blanc, fichier inchangé)" : "dans src/data/companies.json";
   console.log(
-    `\n✅ ${companies.length} entreprises écrites dans src/data/companies.json (${withSite} avec site web crawlable).`
+    `\n✅ ${companies.length} entreprises ${target} — ${withSite} avec site web crawlable.`
   );
-  if (!RESOLVE) {
-    console.log("   Astuce : relancez avec --resolve pour tenter de découvrir les sites manquants.");
+  if (!RESOLVE && !DISCOVER) {
+    console.log("   Astuce : relancez avec --discover pour rechercher les sites manquants.");
   }
 }
 

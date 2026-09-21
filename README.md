@@ -9,7 +9,7 @@ sur LinkedIn, l'APEC ou France Travail.
 
 - **Recherche agrégée** : API France Travail + agrégateurs (Welcome to the Jungle, HelloWork, APEC)
   + offres détectées directement sur les sites des entreprises locales.
-- **Annuaire de ~7 300 entreprises** de la technopole, dont ~1 700 sites crawlés en continu.
+- **Annuaire de ~7 300 entreprises** de la technopole, dont ~1 900 sites crawlés en continu.
 - **Filtres** : niveau d'expérience (débutant / confirmé / expert), type de contrat
   (CDI, CDD, Alternance, Stage, Freelance, Intérim).
 - **Tris** : pertinence, fraîcheur (offres les plus récentes), entreprise.
@@ -119,21 +119,49 @@ Options :
 
 ```bash
 npm run fetch:companies -- --resume            # repart du companies.json existant
-npm run fetch:companies -- --resolve           # tente de deviner les sites manquants
-npm run fetch:companies -- --limit=200         # échantillon (tests)
+npm run fetch:companies -- --discover          # recherche les sites manquants (nom -> domaine)
+npm run fetch:companies -- --discover --discover-limit=500
+npm run fetch:companies -- --resolve           # devine les sites par nom de domaine (peu rentable)
+npm run fetch:companies -- --limit=200         # essai à blanc, n'écrit pas le fichier
 npm run fetch:companies -- --concurrency=20 --timeout=8000
 ```
 
-> `--resolve` devine des domaines à partir du nom d'entreprise puis vérifie que la page
-> parle bien de l'entreprise. Le rendement observé est très faible (quelques sites pour
-> plusieurs milliers de tentatives) : à réserver à une exécution ponctuelle.
+> **`--discover`** interroge une API publique d'autocomplétion d'entreprises (nom →
+> domaine), puis valide deux fois : correspondance stricte du nom, **et** ancrage
+> géographique (mention de Sophia Antipolis, d'une commune voisine ou d'un code postal
+> `06xxx` sur l'accueil ou une page contact / mentions légales). Sans ce second contrôle,
+> on rattache des homonymes étrangers (« Hotel Sophia » → un hôtel australien). Rendement
+> observé : ~300 sites validés sur 5 700 entreprises sans site.
+>
+> **`--resolve`** devine des domaines à partir du nom puis vérifie la page. Rendement très
+> faible (quelques sites pour des milliers de tentatives) : à réserver à un cas ponctuel.
+>
+> Les moteurs de recherche généralistes ne sont volontairement pas utilisés : ils bloquent
+> les accès automatisés et leur scraping viole leurs conditions d'utilisation.
 
 ### Couverture
 
-Environ 5 600 entreprises de l'annuaire n'ont pas de site web connu : elles ne sont pas
+Environ 5 400 entreprises de l'annuaire n'ont pas de site web connu : elles ne sont pas
 crawlées directement, mais restent couvertes par France Travail, les agrégateurs et les
 liens de recherche ciblés. La page `/status.html` affiche cette couverture en toute
-transparence.
+transparence, la barre étant calculée sur les entreprises **réellement crawlables**.
+
+## Robustesse du crawl
+
+Un crawl complet dure une dizaine de minutes et touche près de 2 000 sites tiers. Trois
+protections évitent de tout perdre en cours de route :
+
+- **Checkpoints** : le cache est persisté toutes les 200 entreprises. Les offres déjà
+  trouvées sont consultables pendant le crawl, et un redémarrage du conteneur ne fait
+  plus repartir de zéro — le cache est alors marqué `partial` et le crawl reprend
+  automatiquement au démarrage suivant.
+- **Lecture HTML bornée** (1,5 Mo, en streaming) : certaines pages pèsent plusieurs Mo et
+  suffisaient, chargées en parallèle, à faire tomber le conteneur sur un NAS.
+- **Garde-fous process** : une promesse rejetée ou une exception isolée est journalisée
+  sans arrêter le serveur.
+
+Si le conteneur redémarre malgré tout, réduire `CRAWL_CONCURRENCY` (12 → 6) et fixer une
+limite mémoire explicite sur le conteneur.
 
 ## Limites connues
 

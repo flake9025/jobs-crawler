@@ -88,10 +88,12 @@ async function loadStatus() {
     statCard("offres avec niveau d'xp", offers.withExperience, `${fmt(offers.withContract)} avec type de contrat`),
   ].join("");
 
-  renderCoverage(
-    { ...crawl.byStatus, pending: Math.max(0, directory.crawlable - (crawl.analysed || 0)) },
-    directory.total
-  );
+  // La couverture se lit par rapport aux entreprises réellement crawlables :
+  // les entreprises sans site connu sont comptées à part, elles ne sont jamais analysées.
+  const byStatus = { ...crawl.byStatus };
+  delete byStatus["no-site"];
+  const pending = Math.max(0, directory.crawlable - (crawl.analysed || 0));
+  renderCoverage({ ...byStatus, pending }, directory.crawlable);
 
   topCompaniesEl.innerHTML =
     topCompanies.map(

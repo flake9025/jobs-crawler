@@ -3,6 +3,7 @@ import { crawlAllCompanies } from "./sources/companies.js";
 import { CRAWLABLE_COMPANIES, SOPHIA_COMPANIES } from "../data/companies.js";
 import {
   setCacheJobs,
+  saveCheckpoint,
   setRefreshing,
   setProgress,
   getCacheStatus,
@@ -45,6 +46,7 @@ export async function refreshCompanyCache(reason = "manuel") {
   try {
     const { jobs, stats } = await crawlAllCompanies({
       concurrency: config.cache.concurrency,
+      onCheckpoint: (partialJobs, partialStats) => saveCheckpoint(partialJobs, partialStats),
       onProgress: (done, count, current) => {
         setProgress({ done, total: count, current });
         if (done % 100 === 0 || done === count) {

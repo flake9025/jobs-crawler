@@ -35,6 +35,31 @@ function normalize(s) {
   return normalizeText(s);
 }
 
+// Certaines pages (catalogues, SPA) pèsent plusieurs Mo : les charger entièrement
+// dans cheerio, à 12 en parallèle, suffit à faire tomber le conteneur sur un NAS.
+// On lit donc le corps en streaming avec un budget d'octets.
+const MAX_HTML_BYTES = 1_500_000;
+
+async function readHtmlCapped(res) {
+  if (!res.body) return (await res.text()).slice(0, MAX_HTML_BYTES);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let out = "";
+  let bytes = 0;
+  try {
+    while (bytes < MAX_HTML_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      out += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    // Libère la connexion même si on s'arrête avant la fin du document.
+    reader.cancel().catch(() => {});
+  }
+  return out;
+}
+
 function isCareerLink(text, href) {
   const t = normalize(text);
   const h = normalize(href);
@@ -190,7 +215,7 @@ async function scrapeCompany(company) {
     const res = await fetchWithTimeout(base);
     if (res.ok && (res.headers.get("content-type") || "").includes("html")) {
       homeReached = true;
-      const $ = cheerio.load(await res.text());
+      const $ = cheerio.load(await readHtmlCapped(res));
       careerUrls = discoverCareerUrls($, base);
     } else if (!res.ok) {
       result.error = `HTTP ${res.status}`;
@@ -232,7 +257,7 @@ async function scrapeCompany(company) {
       if (!(res.headers.get("content-type") || "").includes("html")) continue;
       homeReached = true;
       result.careerUrls.push(url);
-      const $ = cheerio.load(await res.text());
+      const $ = cheerio.load(await readHtmlCapped(res));
       const found = extractOffers($, url, company.name, seen, looksLikeCareerUrl(url));
       for (const o of found) {
         if (looksLikeOffer(o.title)) withMarker.push(o);
@@ -262,10 +287,18 @@ async function scrapeCompany(company) {
  *
  * @param {object} options
  * @param {(done:number,total:number,current:string[]) => void} [options.onProgress]
+ * @param {(jobs:Array,stats:Array) => Promise<void>} [options.onCheckpoint] appelé
+ *        périodiquement pour persister le travail déjà effectué.
+ * @param {number} [options.checkpointEvery] nombre d'entreprises entre deux sauvegardes
  * @param {number} [options.concurrency] nombre d'entreprises traitées en parallèle
  * @returns {Promise<{jobs: Array, stats: Array}>} offres détectées + statut par entreprise
  */
-export async function crawlAllCompanies({ onProgress, concurrency = 12 } = {}) {
+export async function crawlAllCompanies({
+  onProgress,
+  onCheckpoint,
+  checkpointEvery = 200,
+  concurrency = 12,
+} = {}) {
   const targets = CRAWLABLE_COMPANIES;
   const jobs = [];
   const stats = [];
@@ -305,6 +338,13 @@ export async function crawlAllCompanies({ onProgress, concurrency = 12 } = {}) {
         inFlight.delete(company.name);
         done++;
         if (onProgress) onProgress(done, targets.length, [...inFlight]);
+        if (onCheckpoint && done % checkpointEvery === 0) {
+          try {
+            await onCheckpoint(jobs, stats);
+          } catch (err) {
+            console.error("[crawl] checkpoint échoué :", err.message);
+          }
+        }
       }
     }
   };
