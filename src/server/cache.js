@@ -19,6 +19,10 @@ let state = {
   updatedAt: null,
   refreshing: false,
   jobs: [],
+  // Statistiques par entreprise (catalogue de sources).
+  companies: [],
+  // Progression du crawl en cours.
+  progress: { done: 0, total: 0, current: [], startedAt: null, finishedAt: null },
 };
 
 /** Charge le cache depuis le disque au démarrage (si présent). */
@@ -28,6 +32,7 @@ export async function loadCache() {
     const parsed = JSON.parse(raw);
     state.updatedAt = parsed.updatedAt || null;
     state.jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
+    state.companies = Array.isArray(parsed.companies) ? parsed.companies : [];
     console.log(`[cache] chargé : ${state.jobs.length} offres (maj ${state.updatedAt || "jamais"})`);
   } catch {
     console.log("[cache] aucun cache existant, démarrage à vide.");
@@ -40,7 +45,11 @@ async function persist() {
     await fs.mkdir(path.dirname(config.cache.file), { recursive: true });
     await fs.writeFile(
       config.cache.file,
-      JSON.stringify({ updatedAt: state.updatedAt, jobs: state.jobs }, null, 0),
+      JSON.stringify(
+        { updatedAt: state.updatedAt, jobs: state.jobs, companies: state.companies },
+        null,
+        0
+      ),
       "utf-8"
     );
   } catch (err) {
@@ -49,8 +58,9 @@ async function persist() {
 }
 
 /** Remplace le contenu du cache avec de nouvelles offres. */
-export async function setCacheJobs(jobs) {
+export async function setCacheJobs(jobs, companies = null) {
   state.jobs = jobs;
+  if (Array.isArray(companies)) state.companies = companies;
   state.updatedAt = new Date().toISOString();
   await persist();
 }
@@ -59,11 +69,25 @@ export function getCacheJobs() {
   return state.jobs;
 }
 
+/** Statistiques de couverture par entreprise (catalogue). */
+export function getCompanyStats() {
+  return state.companies;
+}
+
+export function getProgress() {
+  return state.progress;
+}
+
+export function setProgress(patch) {
+  state.progress = { ...state.progress, ...patch };
+}
+
 export function getCacheStatus() {
   return {
     updatedAt: state.updatedAt,
     refreshing: state.refreshing,
     count: state.jobs.length,
+    progress: state.progress,
   };
 }
 

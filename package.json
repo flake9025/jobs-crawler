@@ -6,7 +6,8 @@
   "main": "src/server/index.js",
   "scripts": {
     "start": "node src/server/index.js",
-    "dev": "node --watch src/server/index.js"
+    "dev": "node --watch src/server/index.js",
+    "fetch:companies": "node scripts/fetch-companies.mjs"
   },
   "engines": {
     "node": ">=20"

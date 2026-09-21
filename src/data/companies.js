@@ -1,139 +1,74 @@
-// Liste des entreprises de Sophia Antipolis fournie par l'utilisateur.
-// site: page carrières / site officiel si connu (sinon null -> on tentera une recherche générique)
-// La détection d'offres sur ces sites est "best effort" : beaucoup de petites entreprises
-// n'ont pas de page carrières structurée. Le connecteur companies.js tente une détection légère
-// et, à défaut, propose un lien vers une recherche ciblée sur les agrégateurs.
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { SEED_COMPANIES } from "./companies-seed.js";
 
-const RAW_COMPANIES = [
-  { name: "Nexess Solutions", site: "https://www.nexess-solutions.com" },
-  { name: "Himyday", site: "https://www.himyday.com" },
-  { name: "Artileap", site: "https://www.artileap.com" },
-  { name: "Optivalue.ai", site: "https://optivalue.ai" },
-  { name: "Azuria", site: null },
-  { name: "Manta Technologies", site: null },
-  { name: "Skribi", site: null },
-  { name: "Virage AI", site: null },
-  { name: "Xeko.ai", site: "https://xeko.ai" },
-  { name: "Deepcodia", site: null },
-  { name: "Ipper", site: null },
-  { name: "Orus", site: null },
-  { name: "Somanity", site: null },
-  { name: "Backspace", site: null },
-  { name: "Instant System", site: "https://www.instant-system.com" },
-  { name: "Easy Global Market", site: "https://www.eglobalmark.com" },
-  { name: "Engit", site: "https://www.engit.fr" },
-  { name: "ActiveEon", site: "https://www.activeeon.com" },
-  { name: "Cintoo 3D", site: "https://www.cintoo.com" },
-  { name: "Kinaxia", site: "https://www.kinaxia.fr" },
-  { name: "Onhys", site: "https://www.onhys.com" },
-  { name: "Videtics", site: "https://www.videtics.com" },
-  { name: "Teach on Mars", site: "https://www.teachonmars.com" },
-  { name: "Aclmeon", site: null },
-  { name: "Secludit", site: null },
-  { name: "Rivieraware", site: null },
-  { name: "Buquati", site: null },
-  { name: "Proealn", site: null },
-  { name: "Nextsourcia", site: null },
-  { name: "Ecaste", site: null },
-  { name: "Interactive Layer", site: null },
-  { name: "Apsynergy", site: "https://www.apsynergy.com" },
-  { name: "Soft Convergence", site: null },
-  { name: "Blurizon", site: null },
-  { name: "Sequoiasoft", site: "https://www.sequoiasoft.com" },
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  // --- Enrichissement depuis l'annuaire officiel Sophia Antipolis (start-up + alumni) ---
-  { name: "Kalray", site: "https://www.kalrayinc.com" },
-  { name: "Amarisoft", site: "https://www.amarisoft.com" },
-  { name: "Qwant", site: "https://www.qwant.com" },
-  { name: "Alcmeon", site: "https://www.alcmeon.com" },
-  { name: "Ezako", site: "https://ezako.com" },
-  { name: "GridPocket", site: "https://www.gridpocket.com" },
-  { name: "Izypeo", site: "https://www.izypeo.com" },
-  { name: "Sinay", site: "https://www.sinay.fr" },
-  { name: "Tekceleo", site: "https://www.tekceleo.fr" },
-  { name: "TrucksMe", site: "https://www.trucksme.com" },
-  { name: "Denimbo", site: "https://denimbo.com" },
-  { name: "Wildmoka", site: "https://wildmoka.com" },
-  { name: "Wyplay", site: "https://www.wyplay.com" },
-  { name: "Ekinnox", site: "https://www.ekinnox.com" },
-  { name: "Key Infuser", site: "https://keyinfuser.com" },
-  { name: "Greenerwave", site: "https://greenerwave.com" },
-  { name: "Hoasys", site: "https://hoasys.fr" },
-  { name: "Litrinium", site: "https://www.litrinium.com" },
-  { name: "Whoog", site: "https://whoog.com" },
-  { name: "Traxxs", site: "https://traxxs.net" },
-  { name: "Idemia", site: "https://www.idemia.com" },
-  { name: "Cynsis", site: null },
-  { name: "Seven Sensing", site: "https://7sensingsoftware.com" },
-  { name: "Sensoria Analytics", site: "https://sensoriaanalytics.com" },
-  { name: "Attestis", site: "https://www.attestis.com" },
-  { name: "Biovotec", site: "https://www.biovotec.com" },
-  { name: "BluManta", site: "https://blumanta.com" },
-  { name: "EpicNpoc", site: "https://epicnpoc.com" },
-  { name: "Conztanz", site: "https://www.conztanz.com" },
-  { name: "Milanamos", site: "https://milanamos.com" },
-  { name: "Mi4", site: "https://mi4.fr" },
-  { name: "Foamous", site: "https://www.foamous.com" },
-  { name: "Plenesys", site: "https://plenesys.com" },
-  { name: "MyCFD", site: "https://www.mycfd.com" },
-  { name: "Azameo", site: "https://www.azameo.com" },
-  { name: "Cloud Connecte", site: "https://www.cloud-connecte.com" },
-  { name: "Oxane", site: "https://www.oxane-vet.com" },
-  { name: "NpxLab", site: "https://npxlab.com" },
-  { name: "Objeos", site: "https://www.objeos.com" },
-  { name: "GLIM", site: "https://www.glim.fr" },
-  { name: "ArcanSecurity", site: "https://arcansecurity.com" },
-  { name: "Instant System", site: "https://instant-system.com" },
-
-  // --- Filière IA ---
-  { name: "ArtInLeap", site: "https://www.artinleap.com/fr" },
-  { name: "Data Moove", site: "https://data-moove.fr" },
-  { name: "Educlever", site: "https://www.educlever.com" },
-  { name: "Median Technologies", site: "https://mediantechnologies.com" },
-  { name: "My Data Models", site: "https://www.mydatamodels.com" },
-  { name: "Quantificare", site: "https://www.quantificare.com" },
-  { name: "Therapixel", site: "https://www.therapixel.com" },
-  { name: "ACRI-ST", site: "https://www.acri-st.fr/fr" },
-
-  // --- Filière Santé / Biotech ---
-  { name: "E-Phy-Science", site: "https://www.e-phy-science.com" },
-  { name: "Genevrier-Genbiotech", site: "https://www.laboratoires-genevrier.com" },
-  { name: "iQualit", site: "https://www.iqualit.com" },
-  { name: "Lundbeck Elaiapharm", site: "https://www.lundbeck.com/elaiapharm/fr" },
-  { name: "Nuvisan", site: "https://www.nuvisan.com" },
-  { name: "Oticon Medical", site: "https://www.oticonmedical.com" },
-  { name: "Palm'Data", site: "https://www.palm-data.com" },
-  { name: "Sangamo", site: "https://www.sangamo.com" },
-  { name: "Syneos Health", site: "https://www.syneoshealth.com" },
-
-  // --- Filière Fintech ---
-  { name: "Abaka Technologies", site: "https://abaka.me" },
-  { name: "Indice A", site: "https://indicea.com" },
-  { name: "KeyQuant", site: "https://www.keyquant.com" },
-  { name: "Koris International", site: "https://www.koris-intl.com" },
-  { name: "Symphony", site: "https://symphony.com" },
-  { name: "Trackinsight", site: "https://www.trackinsight.com/fr" },
-  { name: "Trading Central Labs", site: "https://www.tradingcentral.com" },
-
-  // --- Filière Proptech ---
-  { name: "Cityscan", site: "https://www.cityscan.fr" },
-  { name: "Copro Expertises", site: "https://www.coproexpertises.fr" },
-  { name: "Preventimmo", site: "https://www.preventimmo.fr" },
-  { name: "Smart Service Connect", site: "https://www.smartserviceconnect.com" },
-];
-
-// Déduplication par nom normalisé (au cas où des doublons subsistent).
-function dedupe(list) {
-  const seen = new Map();
-  for (const c of list) {
-    const key = c.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!seen.has(key)) seen.set(key, c);
-    else if (!seen.get(key).site && c.site) seen.set(key, c); // garder la version avec site
+/**
+ * Annuaire complet des entreprises de la technopole.
+ *
+ * Deux sources fusionnées :
+ *  1. SEED_COMPANIES  : liste curatée (sites vérifiés à la main).
+ *  2. companies.json  : annuaire généré depuis les annuaires publics
+ *                       (sophia-antipolis.fr, ville-valbonne.fr) via
+ *                       `npm run fetch:companies`.
+ *
+ * Chaque entrée : { name, site, sources?, sectors?, city? }
+ * `site` peut être null : l'entreprise reste listée (liens de recherche ciblés,
+ * rapprochement par nom sur les offres France Travail / agrégateurs) mais n'est
+ * pas crawlée directement.
+ */
+function loadDirectory() {
+  const file = path.join(__dirname, "companies.json");
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
+    return Array.isArray(parsed) ? parsed : parsed.companies || [];
+  } catch {
+    return [];
   }
-  return [...seen.values()];
 }
 
-export const SOPHIA_COMPANIES = dedupe(RAW_COMPANIES);
+export function companyKey(name = "") {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    // Formes juridiques et suffixes qui créent de faux doublons.
+    .replace(/\b(sas|sasu|sarl|eurl|sa|snc|sci|scop|group|groupe|france|technologies?|solutions?)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Fusionne les listes en privilégiant les entrées qui possèdent un site web. */
+function merge(lists) {
+  const byKey = new Map();
+  for (const list of lists) {
+    for (const c of list) {
+      if (!c || !c.name) continue;
+      const key = companyKey(c.name);
+      if (!key) continue;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, { ...c, sources: [...new Set(c.sources || [])] });
+        continue;
+      }
+      // Complète l'entrée existante sans écraser une donnée déjà vérifiée.
+      existing.site = existing.site || c.site || null;
+      existing.city = existing.city || c.city || null;
+      existing.sectors = existing.sectors?.length ? existing.sectors : c.sectors || [];
+      existing.sources = [...new Set([...(existing.sources || []), ...(c.sources || [])])];
+    }
+  }
+  return [...byKey.values()];
+}
+
+export const SOPHIA_COMPANIES = merge([
+  SEED_COMPANIES.map((c) => ({ ...c, sources: ["curated"] })),
+  loadDirectory(),
+]);
+
+/** Sous-ensemble réellement crawlable (site web connu). */
+export const CRAWLABLE_COMPANIES = SOPHIA_COMPANIES.filter((c) => c.site);
 
 // Communes considérées comme "zone Sophia Antipolis" pour le filtrage géographique.
 export const SOPHIA_GEO = {

@@ -1,11 +1,13 @@
 // Service worker minimal : cache "app shell" pour usage offline de l'interface.
 // Les résultats de recherche (API) ne sont pas mis en cache car dynamiques.
-const CACHE = "sophia-jobs-v2";
+const CACHE = "sophia-jobs-v3";
 const SHELL = [
   "/",
   "/index.html",
+  "/status.html",
   "/styles.css",
   "/app.js",
+  "/status.js",
   "/vendor/xlsx.full.min.js",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

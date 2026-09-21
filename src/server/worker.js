@@ -1,16 +1,19 @@
 import { config } from "./config.js";
 import { crawlAllCompanies } from "./sources/companies.js";
+import { CRAWLABLE_COMPANIES, SOPHIA_COMPANIES } from "../data/companies.js";
 import {
   setCacheJobs,
   setRefreshing,
+  setProgress,
   getCacheStatus,
   isStale,
 } from "./cache.js";
 
 /**
  * Worker de fond : rafraîchit périodiquement le cache des offres d'entreprises.
- * Le scraping des ~100 sites peut prendre du temps, mais il ne bloque JAMAIS
+ * Le crawl de plusieurs milliers de sites prend du temps, mais il ne bloque JAMAIS
  * les recherches utilisateur (qui lisent le cache en mémoire).
+ * La progression est publiée dans le cache et exposée par /api/status.
  */
 
 let running = false;
@@ -28,17 +31,28 @@ export async function refreshCompanyCache(reason = "manuel") {
   running = true;
   setRefreshing(true);
   const started = Date.now();
-  console.log(`[worker] début du refresh cache entreprises (${reason})…`);
+  const total = CRAWLABLE_COMPANIES.length;
+  setProgress({
+    done: 0,
+    total,
+    current: [],
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    reason,
+  });
+  console.log(`[worker] début du refresh (${reason}) : ${total} entreprises à analyser…`);
 
   try {
-    const jobs = await crawlAllCompanies({
-      onProgress: (done, total) => {
-        if (done % 30 === 0 || done === total) {
-          console.log(`[worker]   ${done}/${total} entreprises analysées`);
+    const { jobs, stats } = await crawlAllCompanies({
+      concurrency: config.cache.concurrency,
+      onProgress: (done, count, current) => {
+        setProgress({ done, total: count, current });
+        if (done % 100 === 0 || done === count) {
+          console.log(`[worker]   ${done}/${count} entreprises analysées`);
         }
       },
     });
-    await setCacheJobs(jobs);
+    await setCacheJobs(jobs, stats);
     console.log(
       `[worker] refresh terminé : ${jobs.length} offres en ${((Date.now() - started) / 1000).toFixed(0)}s`
     );
@@ -47,6 +61,7 @@ export async function refreshCompanyCache(reason = "manuel") {
   } finally {
     running = false;
     setRefreshing(false);
+    setProgress({ finishedAt: new Date().toISOString(), current: [] });
   }
 }
 
@@ -56,6 +71,10 @@ export async function refreshCompanyCache(reason = "manuel") {
  *  - puis refresh à intervalle régulier
  */
 export function startWorker() {
+  console.log(
+    `[worker] annuaire : ${SOPHIA_COMPANIES.length} entreprises, dont ${CRAWLABLE_COMPANIES.length} crawlables.`
+  );
+
   if (isStale()) {
     // Non bloquant : on ne "await" pas.
     refreshCompanyCache("démarrage (cache périmé)");

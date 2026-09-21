@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a2540" />
+    <meta name="description" content="Catalogue des sources et statut du crawl des entreprises de Sophia Antipolis" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Catalogue &amp; statut — Sophia Jobs</title>
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <span class="logo">◆</span>
+        <div>
+          <h1>Catalogue &amp; statut</h1>
+          <p class="subtitle">Ce que le crawler couvre réellement, en temps réel</p>
+        </div>
+        <a class="header-link" href="/">← Retour à la recherche</a>
+      </div>
+    </header>
+
+    <main class="container wide">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Crawl des sites d'entreprises</h2>
+          <button id="refresh-btn" type="button" class="export-btn">⟳ Relancer le crawl</button>
+        </div>
+        <p id="crawl-state" class="muted">Chargement…</p>
+        <div class="progress large"><div id="crawl-bar" class="progress-bar"></div></div>
+        <p id="crawl-current" class="muted small"></p>
+      </section>
+
+      <section class="stats-grid" id="stats-grid"></section>
+
+      <section class="panel">
+        <h2>Couverture du catalogue</h2>
+        <div id="coverage" class="coverage"></div>
+        <p class="muted small">
+          Une entreprise « sans site connu » reste consultable via les liens de recherche
+          ciblés et le rapprochement par nom sur les offres France Travail&nbsp;/ agrégateurs.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Entreprises qui recrutent le plus</h2>
+        <div id="top-companies" class="chips"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Annuaire des entreprises</h2>
+          <span id="directory-count" class="muted small"></span>
+        </div>
+
+        <div class="filters">
+          <label class="filter">
+            <span>Recherche</span>
+            <input id="dir-search" type="search" placeholder="Nom d'entreprise…" autocomplete="off" />
+          </label>
+          <label class="filter">
+            <span>Statut</span>
+            <select id="dir-status">
+              <option value="">Tous</option>
+              <option value="ok">Offres détectées</option>
+              <option value="no-offer">Site analysé, aucune offre</option>
+              <option value="unreachable">Site injoignable</option>
+              <option value="error">Erreur</option>
+              <option value="pending">Pas encore analysée</option>
+              <option value="no-site">Sans site connu</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Entreprise</th>
+                <th>Site</th>
+                <th>Statut</th>
+                <th class="num">Offres</th>
+                <th>Dernière analyse</th>
+              </tr>
+            </thead>
+            <tbody id="dir-body"></tbody>
+          </table>
+        </div>
+
+        <div class="pager">
+          <button type="button" id="prev-page" class="link-btn">← Précédent</button>
+          <span id="page-info" class="muted small"></span>
+          <button type="button" id="next-page" class="link-btn">Suivant →</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Sources de l'annuaire : sophia-antipolis.fr, ville-valbonne.fr, OpenStreetMap, liste curatée</span>
+    </footer>
+
+    <script src="/status.js" type="module"></script>
+  </body>
+</html>

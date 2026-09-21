@@ -20,5 +20,7 @@ export const config = {
     refreshMinutes: parseInt(process.env.CACHE_REFRESH_MINUTES || "360", 10),
     // rafraîchir au démarrage si le cache est plus vieux que ça (minutes)
     staleMinutes: parseInt(process.env.CACHE_STALE_MINUTES || "360", 10),
+    // nombre d'entreprises crawlées en parallèle (l'annuaire compte plusieurs milliers de sites)
+    concurrency: parseInt(process.env.CRAWL_CONCURRENCY || "12", 10),
   },
 };

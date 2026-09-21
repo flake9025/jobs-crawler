@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import { config } from "../config.js";
 import { fetchWithTimeout, normalizeJob, tokenize, normalizeText } from "../util.js";
-import { SOPHIA_COMPANIES } from "../../data/companies.js";
+import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES } from "../../data/companies.js";
 
 // Chemins fréquents de pages carrières à tester en fallback (si la découverte auto échoue).
 const CAREER_PATHS = [
@@ -162,22 +162,41 @@ function extractOffers($, pageUrl, companyName, seen, isCareerPage) {
  *  1. charge la home, découvre les pages carrières,
  *  2. charge chaque page carrières (+ fallback chemins devinés),
  *  3. extrait les offres, en privilégiant celles avec marqueurs (H/F, CDI…).
+ *
+ * @returns {Promise<{jobs: Array, status: string, careerUrls: string[], error: string|null, tookMs: number}>}
  */
 async function scrapeCompany(company) {
-  if (!company.site) return [];
+  const started = Date.now();
+  const result = {
+    name: company.name,
+    site: company.site || null,
+    jobs: [],
+    status: "no-site",
+    careerUrls: [],
+    error: null,
+    tookMs: 0,
+    checkedAt: new Date().toISOString(),
+  };
+
+  if (!company.site) return result;
+
   const base = company.site.replace(/\/$/, "");
   const seen = new Set();
   let careerUrls = [];
+  let homeReached = false;
 
   // 1. Home -> découverte des pages carrières.
   try {
     const res = await fetchWithTimeout(base);
     if (res.ok && (res.headers.get("content-type") || "").includes("html")) {
+      homeReached = true;
       const $ = cheerio.load(await res.text());
       careerUrls = discoverCareerUrls($, base);
+    } else if (!res.ok) {
+      result.error = `HTTP ${res.status}`;
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    result.error = err.name === "AbortError" ? "timeout" : err.message;
   }
 
   // 2. Ajoute les chemins devinés en complément (dédupliqués).
@@ -211,9 +230,11 @@ async function scrapeCompany(company) {
       const res = await fetchWithTimeout(url);
       if (!res.ok) continue;
       if (!(res.headers.get("content-type") || "").includes("html")) continue;
+      homeReached = true;
+      result.careerUrls.push(url);
       const $ = cheerio.load(await res.text());
-      const offers = extractOffers($, url, company.name, seen, looksLikeCareerUrl(url));
-      for (const o of offers) {
+      const found = extractOffers($, url, company.name, seen, looksLikeCareerUrl(url));
+      for (const o of found) {
         if (looksLikeOffer(o.title)) withMarker.push(o);
         else withoutMarker.push(o);
       }
@@ -224,30 +245,92 @@ async function scrapeCompany(company) {
   }
 
   // Priorité aux offres "confirmées" (marqueur H/F, CDI…), puis compléments.
-  const result = withMarker.length ? withMarker : withoutMarker;
-  return result.slice(0, 15);
+  const offers = withMarker.length ? withMarker : withoutMarker;
+  result.jobs = offers.slice(0, 15);
+  result.tookMs = Date.now() - started;
+  result.careerUrls = result.careerUrls.slice(0, 5);
+
+  if (result.jobs.length) result.status = "ok";
+  else if (homeReached) result.status = "no-offer";
+  else result.status = "unreachable";
+
+  return result;
 }
 
 /**
  * Scrape l'ensemble des entreprises (par lots) pour alimenter le cache.
- * Retourne la liste complète des offres détectées.
+ *
+ * @param {object} options
+ * @param {(done:number,total:number,current:string[]) => void} [options.onProgress]
+ * @param {number} [options.concurrency] nombre d'entreprises traitées en parallèle
+ * @returns {Promise<{jobs: Array, stats: Array}>} offres détectées + statut par entreprise
  */
-export async function crawlAllCompanies({ onProgress } = {}) {
-  const withSite = SOPHIA_COMPANIES.filter((c) => c.site);
-  const BATCH = 6;
-  const all = [];
+export async function crawlAllCompanies({ onProgress, concurrency = 12 } = {}) {
+  const targets = CRAWLABLE_COMPANIES;
+  const jobs = [];
+  const stats = [];
+  let index = 0;
   let done = 0;
+  const inFlight = new Set();
 
-  for (let i = 0; i < withSite.length; i += BATCH) {
-    const batch = withSite.slice(i, i + BATCH);
-    const res = await Promise.allSettled(batch.map((c) => scrapeCompany(c)));
-    for (const r of res) {
-      if (r.status === "fulfilled") all.push(...r.value);
+  const runner = async () => {
+    while (index < targets.length) {
+      const company = targets[index++];
+      inFlight.add(company.name);
+      try {
+        const res = await scrapeCompany(company);
+        jobs.push(...res.jobs);
+        stats.push({
+          name: res.name,
+          site: res.site,
+          status: res.status,
+          jobs: res.jobs.length,
+          careerUrls: res.careerUrls,
+          error: res.error,
+          tookMs: res.tookMs,
+          checkedAt: res.checkedAt,
+        });
+      } catch (err) {
+        stats.push({
+          name: company.name,
+          site: company.site,
+          status: "error",
+          jobs: 0,
+          careerUrls: [],
+          error: err.message,
+          tookMs: 0,
+          checkedAt: new Date().toISOString(),
+        });
+      } finally {
+        inFlight.delete(company.name);
+        done++;
+        if (onProgress) onProgress(done, targets.length, [...inFlight]);
+      }
     }
-    done += batch.length;
-    if (onProgress) onProgress(done, withSite.length);
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, targets.length) }, () => runner())
+  );
+
+  // Les entreprises sans site ne sont pas crawlables : on les trace quand même
+  // pour que le catalogue affiche une couverture honnête.
+  for (const c of SOPHIA_COMPANIES) {
+    if (!c.site) {
+      stats.push({
+        name: c.name,
+        site: null,
+        status: "no-site",
+        jobs: 0,
+        careerUrls: [],
+        error: null,
+        tookMs: 0,
+        checkedAt: null,
+      });
+    }
   }
-  return all;
+
+  return { jobs, stats };
 }
 
 /**
@@ -271,12 +354,17 @@ export function searchCompanyCache(cachedJobs, query) {
 
 /**
  * Liens de recherche directs par entreprise (fallback).
+ * L'annuaire compte plusieurs milliers d'entreprises : sans filtre on se limite
+ * à un échantillon, sinon la réponse (et l'IHM) deviennent inexploitables.
+ *
  * @param {string} query
  * @param {Set<string>} [onlyCompanies] si fourni, ne retourne que ces entreprises (par nom).
+ * @param {number} [limit] nombre maximum de liens retournés.
  */
-export function companySearchLinks(query, onlyCompanies = null) {
+export function companySearchLinks(query, onlyCompanies = null, limit = 60) {
   return SOPHIA_COMPANIES
     .filter((c) => !onlyCompanies || onlyCompanies.has(c.name))
+    .slice(0, limit)
     .map((c) => ({
       company: c.name,
       site: c.site,
