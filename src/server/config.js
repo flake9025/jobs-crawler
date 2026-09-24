@@ -2,6 +2,9 @@ import "dotenv/config";
 
 export const config = {
   port: parseInt(process.env.PORT || "8080", 10),
+  version: process.env.APP_VERSION || "1.0.0",
+  buildSha: process.env.BUILD_SHA || "dev",
+  buildDate: process.env.BUILD_DATE || null,
   franceTravail: {
     clientId: process.env.FRANCE_TRAVAIL_CLIENT_ID || "",
     clientSecret: process.env.FRANCE_TRAVAIL_CLIENT_SECRET || "",

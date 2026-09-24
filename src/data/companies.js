@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  *                       (sophia-antipolis.fr, ville-valbonne.fr) via
  *                       `npm run fetch:companies`.
  *
- * Chaque entrée : { name, site, sources?, sectors?, city? }
+ * Chaque entrée : { name, site, careerSite?, sources?, sectors?, city? }
  * `site` peut être null : l'entreprise reste listée (liens de recherche ciblés,
  * rapprochement par nom sur les offres France Travail / agrégateurs) mais n'est
  * pas crawlée directement.
@@ -54,6 +54,7 @@ function merge(lists) {
       }
       // Complète l'entrée existante sans écraser une donnée déjà vérifiée.
       existing.site = existing.site || c.site || null;
+      existing.careerSite = existing.careerSite || c.careerSite || null;
       existing.city = existing.city || c.city || null;
       existing.sectors = existing.sectors?.length ? existing.sectors : c.sectors || [];
       existing.sources = [...new Set([...(existing.sources || []), ...(c.sources || [])])];

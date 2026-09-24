@@ -1,6 +1,10 @@
 # --- Image de production pour le NAS ---
 FROM node:20-alpine
 
+ARG APP_VERSION=1.0.0
+ARG BUILD_SHA=dev
+ARG BUILD_DATE
+
 WORKDIR /app
 
 # Dépendances (couche cachée tant que package.json ne change pas)
@@ -15,6 +19,9 @@ COPY public ./public
 RUN mkdir -p /app/data
 
 ENV PORT=8080
+ENV APP_VERSION=$APP_VERSION
+ENV BUILD_SHA=$BUILD_SHA
+ENV BUILD_DATE=$BUILD_DATE
 EXPOSE 8080
 
 # Healthcheck (utilisé par Docker / le NAS)

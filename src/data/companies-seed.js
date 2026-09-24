@@ -4,6 +4,41 @@
 
 
 export const SEED_COMPANIES = [
+  // Grands employeurs : les offres sont publiées sur un ATS distinct du site corporate.
+  {
+    name: "PRO BTP",
+    site: "https://probtp.com",
+    careerSite:
+      "https://recrute-probtp.talent-soft.com/offre-de-emploi/liste-toutes-offres.aspx?changefacet=1&facet_JobRegion=217",
+  },
+  {
+    name: "Amadeus",
+    site: "https://amadeus.com",
+    careerSite: "https://amadeus.wd502.myworkdayjobs.com/jobs",
+  },
+  {
+    name: "Orange",
+    site: "https://orange.jobs",
+    careerSite:
+      "https://orange.jobs/fr/fr/search-results?p=ChIJvUmYZ1gpzBIRlSJcMrwF10o&location=Valbonne%2C%20France",
+  },
+  {
+    name: "Air France",
+    site: "https://www.airfrance.com",
+    careerSite: "https://recrutement.airfrance.com/offre-de-emploi/liste-offres.aspx",
+  },
+  {
+    name: "Atos",
+    site: "https://atos.net",
+    careerSite:
+      "https://jobs.atos.net/search/?createNewAlert=false&q=&locationsearch=valbonne&optionsFacetsDD_country=&optionsFacetsDD_city=&optionsFacetsDD_customfield2=",
+  },
+  {
+    name: "GIEPS",
+    site: "https://carriere.gieps.fr",
+    careerSite:
+      "https://carriere.gieps.fr/fr/gieps/offers#block-051c70c4-d5cc-4777-9fd8-a78d06efc2c2",
+  },
   { name: "Nexess Solutions", site: "https://www.nexess-solutions.com" },
   { name: "Himyday", site: "https://www.himyday.com" },
   { name: "Artileap", site: "https://www.artileap.com" },
@@ -120,4 +155,3 @@ export const SEED_COMPANIES = [
   { name: "Preventimmo", site: "https://www.preventimmo.fr" },
   { name: "Smart Service Connect", site: "https://www.smartserviceconnect.com" },
 ];
-

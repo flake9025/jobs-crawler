@@ -205,7 +205,10 @@ async function scrapeCompany(company) {
 
   if (!company.site) return result;
 
-  const base = company.site.replace(/\/$/, "");
+  // Les grands employeurs peuvent publier leurs offres sur un ATS externe.
+  // `site` reste le domaine corporate de l'annuaire, `careerSite` est la
+  // source réellement parcourue.
+  const base = (company.careerSite || company.site).replace(/\/$/, "");
   const seen = new Set();
   let careerUrls = [];
   let homeReached = false;
@@ -225,7 +228,7 @@ async function scrapeCompany(company) {
   }
 
   // 2. Ajoute les chemins devinés en complément (dédupliqués).
-  const guessed = CAREER_PATHS.map((p) => base + p);
+  const guessed = company.careerSite ? [] : CAREER_PATHS.map((p) => base + p);
   const careerSet = new Set(careerUrls);
   const pagesToScan = [...new Set([...careerUrls, ...guessed])]
     // On reste sur le même domaine pour éviter de scraper LinkedIn/WTTJ ici.
@@ -245,9 +248,14 @@ async function scrapeCompany(company) {
   // contient un mot-clé carrières (career, carriere, emploi, jobs, recrut…).
   const looksLikeCareerUrl = (u) => {
     if (careerSet.has(u)) return true;
+    if (company.careerSite && u === company.careerSite) return true;
     const p = normalize(u);
     return /career|carriere|emploi|jobs|recrut|rejoindre/.test(p);
   };
+
+  if (company.careerSite && !pagesToScan.includes(company.careerSite)) {
+    pagesToScan.unshift(company.careerSite);
+  }
 
   // 3. Scan des pages carrières.
   for (const url of pagesToScan) {

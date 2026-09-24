@@ -87,6 +87,11 @@ Pour chaque entreprise, le crawler charge la page d'accueil, y découvre les lie
 (`/careers`, `/recrutement`…), puis extrait les liens d'offres en s'appuyant sur des
 marqueurs (`H/F`, `CDI`, `Alternance`…) et sur la forme des URLs.
 
+Les grands employeurs dont les offres sont publiées par un ATS externe peuvent
+déclarer un champ `careerSite` dans `src/data/companies-seed.js`. Le site corporate
+reste utilisé pour l'annuaire, tandis que le crawler parcourt directement le portail
+de recrutement (par exemple Talentsoft pour PRO BTP et Air France).
+
 ## API
 
 | Route | Description |

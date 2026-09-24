@@ -17,6 +17,14 @@ const app = express();
 const publicDir = path.join(__dirname, "..", "..", "public");
 app.use(express.static(publicDir));
 
+app.get("/api/version", (_req, res) => {
+  res.json({
+    version: config.version,
+    build: config.buildSha,
+    builtAt: config.buildDate,
+  });
+});
+
 // --- API : recherche d'emploi (rapide) ---
 app.get("/api/search", async (req, res) => {
   const query = (req.query.q || "").toString().trim();
