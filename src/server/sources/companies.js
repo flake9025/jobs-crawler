@@ -4,12 +4,11 @@ import {
   normalizeJob,
   tokenize,
   normalizeText,
-  nameWords,
   parseLooseDate,
 } from "../util.js";
 import { detectLocation } from "../geo.js";
 import { detectAts, findAtsInPage, fetchAtsCandidates, extractSuccessFactorsRows } from "./ats.js";
-import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES, companyNames } from "../../data/companies.js";
+import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES, companyNames, findCompany } from "../../data/companies.js";
 
 // Chemins fréquents de pages carrières à tester en fallback (si la découverte auto échoue).
 const CAREER_PATHS = [
@@ -677,32 +676,98 @@ export async function crawlAllCompanies({
   return { jobs, stats };
 }
 
-// Mots de toutes les appellations d'un employeur (nom + alias), mémorisés.
-const employerWordsCache = new Map();
+// Premiers mots trop vagues pour désigner seuls un employeur : articles, civilités,
+// formes juridiques, lieux, types d'établissement, vocabulaire métier. L'employeur
+// reste trouvable par son nom complet (« air france », « pro btp »).
+const GENERIC_LEAD_WORDS = new Set([
+  "les", "the", "chez", "all", "rsquo", "amp",
+  "monsieur", "madame", "mme", "docteur", "maitre",
+  "sarl", "sas", "sasu", "eurl", "snc", "scm", "sccv", "sci", "scp", "selarl", "selas", "gie",
+  "soc", "societe", "ste", "ets", "etablissements", "cie", "compagnie", "indivision", "holding",
+  "groupe", "group", "ass", "asso", "association", "comite", "club", "fondation", "federation",
+  "azur", "cote", "sophia", "antipolis", "riviera", "valbonne", "biot", "antibes", "mougins",
+  "vallauris", "cannes", "nice", "grasse", "mouans", "saint", "sainte", "sud", "provence",
+  "mediterranee", "alpes", "france", "europe", "euro", "international", "global",
+  "agence", "atelier", "auto", "banque", "boulangerie", "bureau", "cabinet", "cafe", "caisse",
+  "camping", "centre", "center", "ctre", "chateau", "clinique", "college", "credit", "ecole",
+  "ehpad", "fonciere", "financiere", "garage", "hotel", "hoteliere", "inst", "institut",
+  "laboratoire", "laboratoires", "lycee", "mairie", "maison", "mediatheque", "mission", "musee",
+  "mutuelle", "office", "parc", "park", "pharmacie", "residence", "restaurant", "studio", "villa",
+  "air", "pro", "bus", "art", "conseil", "consulting", "data", "digital", "design", "info",
+  "informatique", "services", "service", "software", "solutions", "systems", "tech", "web",
+  "developpement", "formation", "ingenierie", "engineering", "securite", "security", "sante",
+  "medical", "transport", "transports", "immobilier", "management", "marketing",
+  "communication", "business", "innovation", "recherche", "research", "energie", "industrie",
+  "environnement", "interim", "recrutement", "emploi", "travaux", "batiment", "construction",
+  "logistique", "assurance", "assurances", "finance", "technologies", "technology", "media",
+]);
 
-/** Mots identifiant un employeur : « ausy » désigne aussi Randstad Digital. */
-export function employerWords(name = "") {
-  let words = employerWordsCache.get(name);
-  if (!words) {
-    words = new Set(companyNames(name).flatMap((n) => nameWords(n)));
-    employerWordsCache.set(name, words);
+// Appellations des employeurs exploitables dans une recherche, mémorisées par nom.
+const employerNamesCache = new Map();
+
+/**
+ * Comment une recherche peut désigner un employeur :
+ *  - `phrases` : ses noms et alias complets (« orange business services ») ;
+ *  - `words`   : les mots qui le désignent seuls — nom ou alias d'un seul mot
+ *    (« ausy », « nxp »), premier mot distinctif d'un nom composé (« sopra », « toyota »).
+ * Les autres mots d'un nom ne suffisent pas : sinon chercher « santé » remontait toutes
+ * les offres du GIEPS (« Asaf Ass Sante Action Familial »), « security » toutes celles
+ * de Sopra Steria.
+ */
+function employerNames(name) {
+  let names = employerNamesCache.get(name);
+  if (names) return names;
+  const entry = findCompany(name);
+  const phrases = [];
+  const words = new Set();
+  for (const n of new Set([name, ...(entry ? companyNames(entry.name) : [])])) {
+    const toks = tokenize(n);
+    if (!toks.length) continue;
+    if (toks.length > 1) phrases.push(toks);
+    const lead = toks[0];
+    const distinctive = toks.length === 1 || (lead.length >= 3 && !/^\d+$/.test(lead));
+    if (distinctive && !GENERIC_LEAD_WORDS.has(lead)) words.add(lead);
   }
-  return words;
+  names = { phrases, words };
+  // Noms bruts des job boards : borne la mémoire sur un serveur qui tourne des mois.
+  if (employerNamesCache.size > 5000) employerNamesCache.clear();
+  employerNamesCache.set(name, names);
+  return names;
+}
+
+/**
+ * Positions des mots de la requête (issus de `tokenize`) qui désignent l'employeur :
+ * « java amadeus » → {1} pour Amadeus, « orange business » → {0, 1} pour Orange.
+ */
+export function employerMatches(name, tokens) {
+  const hits = new Set();
+  if (!name || !tokens.length) return hits;
+  const { phrases, words } = employerNames(name);
+  tokens.forEach((t, i) => {
+    if (words.has(t)) hits.add(i);
+  });
+  for (const p of phrases) {
+    for (let i = 0; i + p.length <= tokens.length; i++) {
+      if (p.every((w, k) => tokens[i + k] === w)) p.forEach((_, k) => hits.add(i + k));
+    }
+  }
+  return hits;
 }
 
 /**
  * Recherche dans le cache d'offres d'entreprises (filtre en mémoire, instantané).
- * Chaque mot significatif doit apparaître dans l'intitulé ou dans le nom de
- * l'employeur, alias compris (« java amadeus », « sopra », « ausy »…). Les mots
- * vides sont ignorés pour éviter les faux positifs (ex: "de", "chef DE projet").
+ * Chaque mot significatif doit apparaître dans l'intitulé ou désigner l'employeur
+ * (« java amadeus », « sopra », « ausy », « orange business »). Les mots vides sont
+ * ignorés pour éviter les faux positifs (ex: "de", "chef DE projet").
  */
 export function searchCompanyCache(cachedJobs, query) {
-  const tokens = tokenize(query).filter((t) => !STOPWORDS.has(t));
-  if (tokens.length === 0) return [];
+  const tokens = tokenize(query);
+  const significant = [...tokens.keys()].filter((i) => !STOPWORDS.has(tokens[i]));
+  if (significant.length === 0) return [];
   return cachedJobs.filter((j) => {
     const title = normalizeText(j.title);
-    const employer = employerWords(j.company);
-    return tokens.every((tok) => title.includes(tok) || employer.has(tok));
+    const employer = employerMatches(j.company, tokens);
+    return significant.every((i) => title.includes(tokens[i]) || employer.has(i));
   });
 }
 

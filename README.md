@@ -94,19 +94,24 @@ Trois canaux, cumulables :
 
 Activer les notifications sur le NAS Synology :
 
-1. Générer les clés : `npm run vapid:generate`, puis copier `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`
-   dans `/volume1/docker/apps/sophia-jobs/.env`.
+1. Générer les clés : `npm run vapid:generate`, puis copier `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`,
+   ainsi que `VAPID_CONTACT_EMAIL` (votre adresse), dans `/volume1/docker/apps/sophia-jobs/.env`.
+   Pas dans les secrets GitHub : l'image publiée sur GHCR reste générique et ne contient aucune clé.
 2. Exposer l'application en HTTPS : *Panneau de configuration → Portail de connexion → Avancé →
    Proxy inversé* (source `https://jobs.mondomaine.fr:443` → destination `http://localhost:8082`),
    avec un certificat Let's Encrypt (*Sécurité → Certificat*).
-3. Renseigner `PUBLIC_URL=https://jobs.mondomaine.fr` et redémarrer le conteneur.
+3. Renseigner `PUBLIC_URL=https://jobs.mondomaine.fr`, puis recréer le conteneur en relançant le
+   déploiement : un simple redémarrage ne relit pas le `.env` (`docker run --env-file`). Au démarrage,
+   le journal indique « Alertes push : activées », ou pourquoi les clés ont été refusées.
 
 Pour l'email, ajouter `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` dans le même
 `.env`. Le lien de désinscription affiche une page de confirmation (les antivirus et
 prévisualisations de messagerie qui « cliquent » sur les liens ne suppriment donc pas l'alerte).
 
 Côté vie privée : les alertes ne sont pas listables, l'identifiant aléatoire de chaque alerte
-sert de clé d'accès, et l'adresse email n'est jamais renvoyée en clair par l'API.
+sert de clé d'accès, et l'adresse email n'est jamais renvoyée en clair par l'API. Les
+notifications ne partent que vers les services push des navigateurs (Google, Mozilla, Microsoft,
+Apple) : tout autre abonnement est refusé.
 
 ## Suivi des offres (vues / candidatées / ignorées)
 

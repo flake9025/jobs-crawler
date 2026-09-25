@@ -1,6 +1,6 @@
 {
   "name": "sophia-jobs-crawler",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Recherche d'emploi agrégée sur la zone de Sophia Antipolis (PWA + backend Node)",
   "type": "module",
   "main": "src/server/index.js",

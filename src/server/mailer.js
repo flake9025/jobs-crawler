@@ -11,6 +11,11 @@ function getTransporter() {
       port: config.smtp.port,
       secure: config.smtp.secure,
       auth: { user: config.smtp.user, pass: config.smtp.pass },
+      // Délais courts (défauts nodemailer : jusqu'à 10 min) : un serveur SMTP muet ne
+      // doit pas retarder les autres alertes.
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
     });
   }
   return transporter;

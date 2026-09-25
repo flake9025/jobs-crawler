@@ -817,20 +817,33 @@ async function localNotify(alert, count) {
 let lastPoll = 0;
 async function pollAlerts({ notify = true } = {}) {
   lastPoll = Date.now();
-  const list = getRegistry();
-  if (list.length) {
-    const fresh = [];
-    for (const a of list) {
-      try {
-        const remote = await apiFetch(`/api/alerts/${encodeURIComponent(a.id)}`);
-        const count = remote.pending.length;
-        if (notify && count > (a.pending || 0) && document.hidden && !remote.hasPush) localNotify(remote, count);
-        fresh.push({ ...a, ...alertFields(remote) });
-      } catch (err) {
-        if (err.status !== 404) fresh.push(a); // 404 : alerte supprimée (désinscription par email)
-      }
+  const updates = new Map();
+  const gone = new Set();
+  for (const a of getRegistry()) {
+    const fetchedAt = Date.now();
+    try {
+      const remote = await apiFetch(`/api/alerts/${encodeURIComponent(a.id)}`);
+      const count = remote.pending.length;
+      if (notify && count > (a.pending || 0) && document.hidden && !remote.hasPush) localNotify(remote, count);
+      updates.set(a.id, { fields: alertFields(remote), fetchedAt });
+    } catch (err) {
+      if (err.status === 404) gone.add(a.id); // alerte supprimée (désinscription par email)
     }
-    saveRegistry(fresh);
+  }
+  if (updates.size || gone.size) {
+    // Liste relue à la fin : une alerte créée, supprimée ou acquittée pendant le sondage
+    // (clic, autre onglet) ne doit pas être écrasée par la copie prise au départ.
+    saveRegistry(
+      getRegistry()
+        .filter((a) => !gone.has(a.id))
+        .map((a) => {
+          const update = updates.get(a.id);
+          if (!update) return a;
+          const merged = { ...a, ...update.fields };
+          if ((a.ackedAt || 0) > update.fetchedAt) Object.assign(merged, { pending: 0, pendingUrls: [] });
+          return merged;
+        })
+    );
   }
   updateBadge();
   if (!drawer.hidden) renderDrawer();
@@ -845,7 +858,8 @@ async function acknowledgeLocalAlert(q, company) {
   } catch {
     return;
   }
-  saveRegistry(getRegistry().map((x) => (x.id === a.id ? { ...x, pending: 0, pendingUrls: [] } : x)));
+  const ackedAt = Date.now();
+  saveRegistry(getRegistry().map((x) => (x.id === a.id ? { ...x, pending: 0, pendingUrls: [], ackedAt } : x)));
   updateBadge();
 }
 

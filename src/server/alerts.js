@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { config } from "./config.js";
 import { performSearch } from "./search.js";
 import { sendAlertEmail } from "./mailer.js";
-import { sendPushNotification, isPushEnabled } from "./push.js";
+import { sendPushNotification, isPushEnabled, sanitizePushSubscription } from "./push.js";
 
 /**
  * Alertes "nouvelles offres" sur une recherche sauvegardée (mots-clés et/ou entreprise).
@@ -27,10 +27,15 @@ import { sendPushNotification, isPushEnabled } from "./push.js";
 const MAX_SEEN_URLS = 500;
 const MAX_PENDING = 50;
 const MAX_ALERTS = 1000;
+// Appareils abonnés par alerte (les plus anciens cèdent la place) : les envois sont
+// séquentiels, une liste sans borne pouvait allonger indéfiniment chaque vérification.
+const MAX_PUSH_SUBSCRIPTIONS = 10;
+// Au-delà, une vérification est considérée comme bloquée et n'empêche plus les suivantes.
+const MAX_CHECK_MS = 30 * 60 * 1000;
 
 let alerts = [];
 let loaded = false;
-let checking = false;
+let currentCheck = null;
 
 async function persist() {
   try {
@@ -49,10 +54,14 @@ export async function loadAlerts() {
     alerts = JSON.parse(raw).map((a) => ({
       company: null,
       email: null,
-      pushSubscriptions: [],
       seenUrls: [],
       pending: [],
       ...a,
+      // Abonnements enregistrés avant la validation stricte : on ne garde que les valides.
+      pushSubscriptions: (a.pushSubscriptions || [])
+        .map(sanitizePushSubscription)
+        .filter(Boolean)
+        .slice(-MAX_PUSH_SUBSCRIPTIONS),
     }));
     console.log(`[alerts] ${alerts.length} alerte(s) chargée(s).`);
   } catch {
@@ -146,7 +155,7 @@ export async function addPushSubscription(id, subscription) {
   const endpoint = subscription?.endpoint;
   if (!endpoint) return false;
   if (!alert.pushSubscriptions.some((s) => s.endpoint === endpoint)) {
-    alert.pushSubscriptions.push(subscription);
+    alert.pushSubscriptions = [...alert.pushSubscriptions, subscription].slice(-MAX_PUSH_SUBSCRIPTIONS);
     await persist();
   }
   return true;
@@ -180,8 +189,13 @@ const pendingView = (j, foundAt) => ({
  * Appelé périodiquement par le worker.
  */
 export async function checkAlerts() {
-  if (!alerts.length || checking) return;
-  checking = true;
+  if (!alerts.length) return;
+  if (currentCheck) {
+    if (Date.now() - currentCheck.startedAt < MAX_CHECK_MS) return;
+    console.warn("[alerts] vérification précédente bloquée depuis plus de 30 min : relance.");
+  }
+  const thisCheck = { startedAt: Date.now() };
+  currentCheck = thisCheck;
   // Plusieurs alertes peuvent porter sur la même recherche : une seule requête par tour.
   const searches = new Map();
   const run = (alert) => {
@@ -237,6 +251,7 @@ export async function checkAlerts() {
     }
     await persist();
   } finally {
-    checking = false;
+    // Une vérification bloquée qui finit par aboutir ne libère pas celle qui l'a relayée.
+    if (currentCheck === thisCheck) currentCheck = null;
   }
 }

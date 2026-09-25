@@ -38,6 +38,7 @@ async function getToken() {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(config.fetchTimeoutMs),
   });
   if (!res.ok) {
     throw new Error(`France Travail auth échouée: ${res.status}`);
@@ -65,6 +66,7 @@ export async function searchFranceTravail(query) {
     });
 
     const res = await fetch(`${SEARCH_URL}?${params}`, {
+      signal: AbortSignal.timeout(config.fetchTimeoutMs),
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
 

@@ -16,7 +16,7 @@ import {
   acknowledgeAlert,
   addPushSubscription,
 } from "./alerts.js";
-import { isPushEnabled, getPublicKey } from "./push.js";
+import { isPushEnabled, getPublicKey, getPushStatus, sanitizePushSubscription } from "./push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -126,8 +126,8 @@ app.delete("/api/alerts/:id", async (req, res) => {
 });
 
 app.post("/api/alerts/:id/subscribe", async (req, res) => {
-  const subscription = req.body?.subscription;
-  if (!subscription?.endpoint) return res.status(400).json({ error: "Abonnement push invalide." });
+  const subscription = sanitizePushSubscription(req.body?.subscription);
+  if (!subscription) return res.status(400).json({ error: "Abonnement push invalide." });
   const ok = await addPushSubscription(req.params.id, subscription);
   if (!ok) return res.status(404).json({ error: "Alerte introuvable." });
   res.json({ subscribed: true });
@@ -288,7 +288,16 @@ async function start() {
     console.log(`  Scrapers           : ${config.enableScrapers ? "activés" : "désactivés"}`);
     console.log(`  Entreprises suivies : ${SOPHIA_COMPANIES.length} (dont ${CRAWLABLE_COMPANIES.length} crawlables)`);
     console.log(`  Alertes email      : ${config.smtp.enabled ? "activées (SMTP configuré)" : "désactivées (SMTP absent)"}`);
-    console.log(`  Alertes push       : ${isPushEnabled() ? "activées (VAPID configuré, HTTPS requis côté navigateur)" : "désactivées (VAPID absent, npm run vapid:generate)"}`);
+    const push = getPushStatus();
+    console.log(
+      `  Alertes push       : ${
+        push.enabled
+          ? "activées (VAPID configuré, HTTPS requis côté navigateur)"
+          : push.error
+            ? `désactivées (clés VAPID invalides : ${push.error})`
+            : "désactivées (VAPID absent, npm run vapid:generate)"
+      }`
+    );
     if (!config.publicUrl) console.log("  PUBLIC_URL         : non défini (emails sans lien vers l'application)");
     // Lance le worker de fond (cache entreprises).
     startWorker();

@@ -1,5 +1,10 @@
 import "dotenv/config";
 
+// Valeur sans espaces ni guillemets autour : `docker run --env-file` les conserve tels quels.
+function envKey(name) {
+  return (process.env[name] || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+}
+
 export const config = {
   port: parseInt(process.env.PORT || "8080", 10),
   version: process.env.APP_VERSION || "1.0.0",
@@ -47,9 +52,9 @@ export const config = {
   },
   // ---- Notifications push navigateur (alertes) ----
   vapid: {
-    publicKey: process.env.VAPID_PUBLIC_KEY || "",
-    privateKey: process.env.VAPID_PRIVATE_KEY || "",
-    contact: process.env.VAPID_CONTACT_EMAIL || "contact@sophia-jobs.local",
+    publicKey: envKey("VAPID_PUBLIC_KEY"),
+    privateKey: envKey("VAPID_PRIVATE_KEY"),
+    contact: envKey("VAPID_CONTACT_EMAIL") || "contact@sophia-jobs.local",
     get enabled() {
       return Boolean(this.publicKey && this.privateKey);
     },
