@@ -9,21 +9,28 @@ sur LinkedIn, l'APEC ou France Travail.
 
 - **Recherche agrégée** : API France Travail + agrégateurs (Welcome to the Jungle, HelloWork, APEC)
   + offres détectées directement sur les sites des entreprises locales.
-- **Annuaire de ~7 300 entreprises** de la technopole, dont ~1 900 sites crawlés en continu.
+- **Annuaire de ~7 300 entreprises** de la technopole, dont ~1 950 sites crawlés en continu.
 - **Onglet « Entreprises »** : sélection éditoriale des employeurs emblématiques de la technopole
-  (grandes entreprises, startups, grandes ESN, ESN montantes), avec boutons « Voir les offres »
-  (catalogue interne, puis site de l'entreprise) et « Candidature spontanée ».
-- **Alertes nouvelles offres** : sauvegardez une recherche pour être notifié(e) par email et/ou
-  notification push navigateur dès qu'une nouvelle offre correspondante apparaît.
-- **Suivi des offres consultées** : marquez une offre comme candidatée ou ignorée (stockage local
-  navigateur, aucun compte requis) ; elle apparaît grisée lors des prochaines visites.
+  (grands employeurs, startups, grandes ESN, ESN montantes). Chaque fiche affiche le nombre
+  d'offres détectées sur le site carrières, un bouton **« Voir les offres »** (recherche en
+  mode entreprise : `/?company=Amadeus`, filtrable par mot-clé) et **« Candidature spontanée »**.
+  Ces entreprises sont crawlées en priorité et intégrées au moteur de recherche : leurs offres
+  remontent dans les recherches classiques, rattachées à la fiche via leurs alias.
+- **Accueil** : les entreprises vedettes qui publient le plus d'offres, en un clic.
+- **Alertes nouvelles offres** : suivez une recherche ou une entreprise ; les nouveautés sont
+  signalées par une pastille sur la cloche, par notification navigateur et/ou par email.
+- **Suivi des offres** : les offres ouvertes apparaissent comme « vues », et chacune peut être
+  marquée candidatée ou ignorée (stockage local navigateur, aucun compte requis) ; elles restent
+  grisées lors des prochaines visites, et les ignorées peuvent être masquées.
 - **Filtres** : niveau d'expérience (débutant / confirmé / expert), type de contrat
   (CDI, CDD, Alternance, Stage, Freelance, Intérim).
 - **Tris** : pertinence, fraîcheur (offres les plus récentes), entreprise.
 - **Page de statut** (`/status.html`) : progression du crawl en temps réel, couverture
   du catalogue, entreprises qui recrutent le plus, annuaire complet consultable.
-- **Export Excel** des résultats filtrés.
-- **PWA** installable, avec service worker (app shell hors ligne).
+- **Export Excel** des résultats filtrés (avec le statut de chaque offre).
+- **PWA** installable, avec service worker (interface disponible hors ligne, notifications).
+- **Erreurs lisibles** : si l'API est injoignable (coupure réseau, proxy d'entreprise), l'interface
+  affiche « Erreur technique : API injoignable » plutôt qu'une erreur JSON.
 
 ## Démarrage rapide
 
@@ -59,31 +66,55 @@ Toutes les options passent par variables d'environnement (voir `.env.example`).
 | `CACHE_STALE_MINUTES` | `360` | Âge au-delà duquel un crawl est relancé au démarrage |
 | `CACHE_FILE` | `/app/data/companies-cache.json` | Fichier de persistance du cache |
 | `ALERTS_FILE` | `/app/data/alerts.json` | Fichier de persistance des alertes (recherches sauvegardées) |
-| `ALERTS_CHECK_MINUTES` | `30` | Intervalle entre deux vérifications des alertes |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — | Serveur SMTP pour les alertes email (désactivées si absent) |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | — | Clés pour les notifications push (générées par `npm run vapid:generate`) |
+| `ALERTS_CHECK_MINUTES` | `30` | Intervalle entre deux vérifications des alertes (en plus de la vérification après chaque crawl) |
+| `PUBLIC_URL` | — | Adresse publique de l'application (ex. `https://jobs.mondomaine.fr`) : liens « Ouvrir dans Sophia Jobs » et « Se désabonner » des emails |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — | Serveur SMTP pour les alertes email (désactivées si absent) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CONTACT_EMAIL` | — | Clés pour les notifications push (générées par `npm run vapid:generate`) |
 
 ## Alertes "nouvelles offres"
 
-Depuis l'onglet **Recherche**, après une recherche, un bandeau propose de créer une alerte :
-un email (optionnel) et/ou une notification push navigateur sont envoyés dès qu'une offre
-correspondante, non encore vue, est détectée. Les alertes sont vérifiées toutes les
-`ALERTS_CHECK_MINUTES` minutes en tâche de fond, sur les mêmes sources que la recherche
-(France Travail, agrégateurs, cache entreprises).
+Après une recherche (ou depuis la fiche d'une entreprise), le bouton **« Créer une alerte »**
+enregistre la recherche. Les alertes sont vérifiées après chaque crawl et toutes les
+`ALERTS_CHECK_MINUTES` minutes, sur les mêmes sources que la recherche. Les offres déjà
+présentes à la création ne sont pas signalées : seules les nouveautés le sont.
 
-- **Email** : nécessite un SMTP configuré dans `.env` (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`…).
-- **Push** : nécessite des clés VAPID (`npm run vapid:generate`, à copier dans `.env`). Le
-  navigateur demande la permission de notification lors de la création de l'alerte.
+Trois canaux, cumulables :
 
-Sans SMTP ni VAPID configurés, la création d'alerte reste possible mais n'envoie rien tant que
-l'un des deux n'est pas activé.
+| Canal | Prérequis | Comportement |
+|---|---|---|
+| **Dans l'application** | aucun | Pastille sur la cloche, liste « Mes alertes » ; les nouveautés sont mises en avant (badge « Nouveau ») à l'ouverture de l'alerte. |
+| **Notification navigateur** | clés VAPID **et** site servi en **HTTPS** | Notification système, même onglet fermé ; un clic ouvre l'alerte. |
+| **Email** | SMTP configuré (+ `PUBLIC_URL` recommandé) | Récapitulatif des nouvelles offres, avec lien de désinscription. |
 
-## Suivi des offres (candidatées / ignorées)
+> **Pourquoi le navigateur ne propose pas les notifications ?** Les navigateurs n'autorisent
+> les notifications push que sur un **site sécurisé** (HTTPS, ou `localhost`). Servie en HTTP
+> (`http://NAS:8082`), l'application ne peut pas les proposer : le panneau d'alerte l'indique
+> et seuls les canaux application et email restent disponibles. Il faut aussi des clés VAPID
+> côté serveur. Sur iPhone/iPad, l'application doit être ajoutée à l'écran d'accueil (iOS 16.4+).
 
-Chaque offre peut être marquée « Candidaté » ou « Ignorer » directement depuis sa carte ; le
-statut (et le simple fait d'avoir ouvert l'offre) est mémorisé dans le `localStorage` du
-navigateur, sans compte ni serveur. Les offres déjà traitées apparaissent grisées lors des
-prochaines visites, et un bouton « ↺ » permet de réinitialiser le statut.
+Activer les notifications sur le NAS Synology :
+
+1. Générer les clés : `npm run vapid:generate`, puis copier `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`
+   dans `/volume1/docker/apps/sophia-jobs/.env`.
+2. Exposer l'application en HTTPS : *Panneau de configuration → Portail de connexion → Avancé →
+   Proxy inversé* (source `https://jobs.mondomaine.fr:443` → destination `http://localhost:8082`),
+   avec un certificat Let's Encrypt (*Sécurité → Certificat*).
+3. Renseigner `PUBLIC_URL=https://jobs.mondomaine.fr` et redémarrer le conteneur.
+
+Pour l'email, ajouter `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` dans le même
+`.env`. Le lien de désinscription affiche une page de confirmation (les antivirus et
+prévisualisations de messagerie qui « cliquent » sur les liens ne suppriment donc pas l'alerte).
+
+Côté vie privée : les alertes ne sont pas listables, l'identifiant aléatoire de chaque alerte
+sert de clé d'accès, et l'adresse email n'est jamais renvoyée en clair par l'API.
+
+## Suivi des offres (vues / candidatées / ignorées)
+
+Une offre ouverte est marquée « Vue » ; chaque offre peut aussi être marquée « Candidaté » ou
+« Ignorer » depuis sa carte. Ces statuts sont mémorisés dans le `localStorage` du navigateur
+(sans compte ni serveur) et synchronisés entre onglets. Les offres traitées apparaissent
+grisées lors des prochaines visites, l'interrupteur « Masquer les offres ignorées » les retire
+de la liste, et « Rétablir » efface le statut. Les simples « vues » sont oubliées après 6 mois.
 
 ## Architecture
 
@@ -92,8 +123,8 @@ src/
   data/
     companies-seed.js     liste curatée (sites vérifiés à la main)
     companies.json        annuaire généré (commité, ~7 300 entreprises)
-    companies.js          fusion seed + annuaire, dédoublonnage
-    featured-companies.js sélection éditoriale (Top 15, startups, ESN…) pour l'onglet Entreprises
+    companies.js          fusion vedettes + seed + annuaire, dédoublonnage par nom et alias
+    featured-companies.js sélection éditoriale (grands employeurs, startups, ESN) : pages d'offres vérifiées
   server/
     index.js              serveur Express et API HTTP
     config.js             configuration par variables d'environnement
@@ -102,14 +133,17 @@ src/
     worker.js             job de fond : crawl périodique, vérification des alertes
     alerts.js             alertes "nouvelles offres" (recherches sauvegardées, notifications)
     mailer.js             envoi des emails d'alerte (nodemailer / SMTP)
-    push.js                notifications push navigateur (web-push / VAPID)
+    push.js               notifications push navigateur (web-push / VAPID)
     ranking.js            scoring de pertinence, déduplication, tri
-    util.js               normalisation des offres (contrat, expérience, niveau)
+    util.js               normalisation des offres (contrat, expérience, niveau, dates, noms d'employeur)
+    geo.js                localisation des offres (Alpes-Maritimes, Sophia Antipolis et communes voisines)
     sources/
       franceTravail.js    API officielle France Travail
       aggregators.js      WTTJ, HelloWork, APEC + liens de recherche directs
       companies.js        crawl des pages carrières des entreprises locales
-public/                   PWA : recherche (index.html) et statut (status.html)
+      ats.js              connecteurs API des ATS (Workday, Phenom, Greenhouse, Lever, Recruitee…)
+public/                   PWA : recherche + entreprises (index.html, app.js), statut (status.html),
+                          composants partagés (ui.js), service worker (sw.js)
 scripts/fetch-companies.mjs  génération de l'annuaire
 scripts/generate-vapid-keys.mjs  génération des clés de notifications push
 ```
@@ -124,33 +158,56 @@ instantanément, et n'interrogent en direct que France Travail et les agrégateu
 Pour chaque entreprise, le crawler charge la page d'accueil, y découvre les liens
 « carrières / recrutement / nous rejoindre », complète avec des chemins usuels
 (`/careers`, `/recrutement`…), puis extrait les liens d'offres en s'appuyant sur des
-marqueurs (`H/F`, `CDI`, `Alternance`…) et sur la forme des URLs.
+marqueurs (`H/F`, `CDI`, `Alternance`…) et sur la forme des URLs. Les liens de navigation
+(« Voir les 15 offres », filtres, versions traduites d'une même offre) sont écartés, et une
+entreprise est plafonnée à 40 offres (affiché « 40+ ») pour ne pas noyer les résultats.
 
-Les grands employeurs dont les offres sont publiées par un ATS externe peuvent
-déclarer un champ `careerSite` dans `src/data/companies-seed.js`. Le site corporate
-reste utilisé pour l'annuaire, tandis que le crawler parcourt directement le portail
-de recrutement (par exemple Talentsoft pour PRO BTP et Air France).
+Quand la page d'offres est un **ATS connu** (Workday, Phenom, Greenhouse, Lever, Recruitee,
+SmartRecruiters, SuccessFactors), le crawler interroge directement son API publique : les offres
+sont alors complètes et localisées, même si la page est rendue en JavaScript.
+
+Les fiches de `src/data/featured-companies.js` (et certaines de `companies-seed.js`) précisent
+le crawl :
+
+| Champ | Rôle |
+|---|---|
+| `careerSite` | Page (ou ATS) crawlée à la place du site corporate |
+| `careerUrl` | Page carrières destinée à l'humain (bouton « Site carrières ») |
+| `applyUrl` | Page de candidature spontanée (à défaut : `careerUrl`, puis `site`) |
+| `aliases` | Autres raisons sociales : rattachent doublons de l'annuaire et offres des job boards |
+| `localOnly` | Ne garde que les offres situées dans les Alpes-Maritimes (listes nationales) |
+| `offerUrlFilter` | Ne garde que les offres dont l'URL contient ce segment (site partagé par un groupe, ex. `/emploi/06/balitrand/` sur le site Ciffréo Bona) |
+| `crawl: false` | Site inexploitable (anti-robot, application JavaScript) : fiche « à consulter sur leur site », sans « 0 offre » trompeur |
+
+Le format du cache est versionné (`CACHE_FORMAT` dans `src/server/cache.js`) : quand
+l'extraction change, un cache produit par l'ancienne version est recalculé automatiquement
+au démarrage suivant. Les offres se reconstituent alors au fil du crawl (entreprises vedettes
+en premier, instantané toutes les 200 entreprises).
 
 ## API
 
 | Route | Description |
 |---|---|
-| `GET /api/search?q=...` | Recherche agrégée, offres classées par pertinence |
+| `GET /api/search?q=...&company=...` | Recherche agrégée (`q` et/ou `company`), offres classées par pertinence ; `company` restreint à un employeur et renvoie sa fiche |
+| `GET /api/featured-companies` | Sélection éditoriale par catégorie, avec nombre d'offres et statut de crawl |
 | `GET /api/companies?page=&pageSize=&search=&status=` | Annuaire paginé avec statut de crawl |
-| `GET /api/featured-companies` | Sélection éditoriale (Top 15, startups, ESN majeures/montantes) |
-| `GET /api/company-jobs?name=...` | Offres en cache pour une entreprise donnée |
-| `GET /api/alerts` | Liste des alertes + disponibilité email/push |
-| `POST /api/alerts` | Crée une alerte `{ query, email? }` |
-| `DELETE /api/alerts/:id` | Supprime une alerte |
+| `GET /api/config` | Version et canaux d'alerte disponibles (email, push, clé VAPID publique) |
+| `POST /api/alerts` | Crée une alerte `{ query?, company?, email? }` |
+| `GET /api/alerts/:id` | État d'une alerte (nouveautés en attente, canaux) |
+| `POST /api/alerts/:id/ack` | Marque les nouveautés comme vues |
 | `POST /api/alerts/:id/subscribe` | Abonne un navigateur aux notifications push de l'alerte |
+| `DELETE /api/alerts/:id` | Supprime une alerte |
+| `GET` / `POST /api/alerts/:id/unsubscribe` | Page de désinscription (lien des emails) / confirmation |
 | `GET /api/status` | Progression du crawl, couverture, statistiques d'offres |
 | `GET /api/cache` | Statut brut du cache |
 | `POST /api/cache/refresh` | Relance un crawl complet (non bloquant) |
+| `GET /api/version` | Version, build et date de livraison (pied de page) |
 | `GET /api/health` | Sonde de santé |
 
 Statuts possibles d'une entreprise : `ok` (offres détectées), `no-offer` (site analysé,
-aucune offre publiée), `unreachable` (site injoignable), `pending` (pas encore analysée),
-`no-site` (aucun site web connu).
+aucune offre publiée), `unreachable` (site injoignable), `error` (erreur d'analyse),
+`pending` (pas encore analysée), `link-only` (site non analysable automatiquement, à
+consulter directement), `no-site` (aucun site web connu).
 
 ## Régénérer l'annuaire
 
@@ -217,8 +274,11 @@ limite mémoire explicite sur le conteneur.
 
 - Le scraping des agrégateurs est *best effort* : LinkedIn et Indeed bloquent
   agressivement, d'où des liens de recherche directs systématiquement proposés.
-- Les sites d'entreprises en rendu JavaScript intégral (ATS embarqués) ne sont pas
-  explorés : seul le HTML servi est analysé.
+- Les sites d'entreprises en rendu JavaScript intégral ne sont pas explorés (seul le HTML
+  servi est analysé), sauf quand ils reposent sur un ATS connu interrogé par API. Les fiches
+  vedettes concernées (SAP Labs, IBM, Capgemini, Alten, CGI…) sont marquées « à consulter
+  sur leur site » ; leurs offres relayées par France Travail et les agrégateurs restent
+  rattachées à la fiche.
 - Le niveau d'expérience et le type de contrat sont déduits du texte de l'offre quand la
   source ne les fournit pas ; ils peuvent être absents (filtre « Non précisé »).
 
