@@ -19,6 +19,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  *
  * Chaque entrée : { name, site, careerSite?, city?, sectors?, sources?,
  *                   aliases?, offerUrlFilter?, localOnly?, crawl?, featured? }
+ *  - `careerSite` : page d'offres (ou ATS) crawlée à la place du site ; une liste
+ *    d'URLs quand l'employeur publie sur plusieurs sites (voir careerSitesOf).
  *  - `aliases` : autres raisons sociales ; les entrées de l'annuaire portant l'un
  *    de ces noms sont rattachées à la fiche (« Cie Ibm France » → IBM).
  *  - `offerUrlFilter` : fragment d'URL des offres propres à l'entreprise, quand le
@@ -90,6 +92,12 @@ export const SOPHIA_COMPANIES = merge([
 export const CRAWLABLE_COMPANIES = SOPHIA_COMPANIES.filter(
   (c) => (c.site || c.careerSite) && c.crawl !== false
 );
+
+/** Pages d'offres crawlées d'une entreprise (`careerSite` : URL ou liste d'URLs). */
+export function careerSitesOf(company) {
+  const sites = company?.careerSite;
+  return (Array.isArray(sites) ? sites : [sites]).filter(Boolean);
+}
 
 /** Appellations connues d'une entreprise de l'annuaire (nom + alias). */
 const NAMES_BY_COMPANY = new Map(SOPHIA_COMPANIES.map((c) => [c.name, [c.name, ...(c.aliases || [])]]));

@@ -9,14 +9,16 @@
 // - `site`        : site corporate.
 // - `careerUrl`   : page carrières destinée à l'humain (lien « Site carrières »).
 // - `careerSite`  : page (ou ATS) crawlée pour détecter les offres locales. Les ATS
-//                   Workday, Phenom, Greenhouse, Lever, Recruitee, SmartRecruiters et
-//                   SuccessFactors sont interrogés via leur API publique.
+//                   Workday, Phenom, Greenhouse, Lever, Recruitee, SmartRecruiters,
+//                   SuccessFactors et Yello sont interrogés via leur API publique, de
+//                   même que les sites d'offres d'Abylsen et de Randstad Digital. Une
+//                   liste d'URLs cumule plusieurs sites (ex. EY : campus + expérimentés).
 // - `applyUrl`    : candidature spontanée (à défaut : `careerUrl`, puis `site`).
 // - `aliases`     : autres raisons sociales (annuaires, France Travail…) : elles
 //                   rattachent les doublons de l'annuaire et les offres à la fiche.
 //                   Jamais d'alias trop générique (« Toyota » = une concession).
 // - `localOnly`   : ne garder que les offres explicitement situées dans les
-//                   Alpes-Maritimes (listes nationales sans filtre de lieu fiable).
+//                   Alpes-Maritimes ou à Monaco (listes nationales sans filtre de lieu fiable).
 // - `crawl:false` : site non exploitable (anti-bot, application JavaScript…) : la
 //                   fiche renvoie vers le site, sans afficher un « 0 offre » trompeur.
 // - `tagline`     : accroche courte affichée sur la carte.
@@ -239,11 +241,33 @@ export const FEATURED_CATEGORIES = [
         aliases: ["Capgemini Technology Services", "Capgemini Engineering"],
       },
       {
+        name: "EY",
+        tagline: "Audit, conseil et expertise comptable (Nice, Monaco)",
+        site: "https://www.ey.com/fr_fr",
+        city: "Nice",
+        careerUrl: "https://eyglobal.yello.co/job_boards/c1riT--B2O-KySgYWsZO1Q?locale=fr",
+        // Stages et jeunes diplômés sur Yello, postes expérimentés sur SuccessFactors
+        // (seule la recherche « Nice » y renvoie des offres de la zone).
+        careerSite: [
+          "https://eyglobal.yello.co/job_boards/c1riT--B2O-KySgYWsZO1Q?locale=fr",
+          "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=Nice",
+        ],
+        localOnly: true,
+        aliases: [
+          "Ernst & Young",
+          "EY Consulting",
+          "Ernst & Young Advisory",
+          "Ernst & Young Audit",
+          "Ernst & Young et Associés",
+          "EY Ventury Avocats",
+        ],
+      },
+      {
         name: "Randstad Digital",
         tagline: "Services numériques et ingénierie (ex-Ausy)",
         site: "https://www.randstaddigital.fr",
-        careerUrl: "https://www.randstaddigital.fr/fr/carrieres/toutes-nos-offres/",
-        careerSite: "https://www.randstaddigital.fr/fr/carrieres/toutes-nos-offres/",
+        careerUrl: "https://www.randstaddigital.fr/fr/carrieres/toutes-nos-offres/re-provencealpescotedazur/",
+        careerSite: "https://www.randstaddigital.fr/fr/carrieres/toutes-nos-offres/re-provencealpescotedazur/",
         localOnly: true,
         // Jamais « Randstad » seul : ce sont les agences d'intérim.
         aliases: ["Ausy", "Ausy Technology"],
@@ -253,8 +277,7 @@ export const FEATURED_CATEGORIES = [
         tagline: "Conseil en ingénierie et informatique",
         site: "https://www.abylsen.com",
         careerUrl: "https://jobs.abylsen.com/fr/offers?city=Valbonne",
-        // Application JavaScript.
-        crawl: false,
+        careerSite: "https://jobs.abylsen.com/fr/offers?city=Valbonne",
         aliases: ["Abylsen Sud"],
       },
       {

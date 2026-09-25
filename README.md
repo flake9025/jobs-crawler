@@ -144,12 +144,13 @@ src/
     push.js               notifications push navigateur (web-push / VAPID)
     ranking.js            scoring de pertinence, déduplication, tri
     util.js               normalisation des offres (contrat, expérience, niveau, dates, noms d'employeur)
-    geo.js                localisation des offres (Alpes-Maritimes, Sophia Antipolis et communes voisines)
+    geo.js                localisation des offres (Alpes-Maritimes et Monaco, Sophia Antipolis et communes voisines)
     sources/
       franceTravail.js    API officielle France Travail
       aggregators.js      WTTJ, HelloWork, APEC + liens de recherche directs
       companies.js        crawl des pages carrières des entreprises locales
-      ats.js              connecteurs API des ATS (Workday, Phenom, Greenhouse, Lever, Recruitee…)
+      ats.js              connecteurs API des ATS (Workday, Phenom, Greenhouse, Lever, Recruitee, Yello…)
+                          et des sites d'offres propres à un employeur (Abylsen, Randstad Digital)
 public/                   PWA : recherche + entreprises (index.html, app.js), statut (status.html),
                           composants partagés (ui.js), service worker (sw.js)
 scripts/fetch-companies.mjs  génération de l'annuaire
@@ -171,19 +172,23 @@ marqueurs (`H/F`, `CDI`, `Alternance`…) et sur la forme des URLs. Les liens de
 entreprise est plafonnée à 40 offres (affiché « 40+ ») pour ne pas noyer les résultats.
 
 Quand la page d'offres est un **ATS connu** (Workday, Phenom, Greenhouse, Lever, Recruitee,
-SmartRecruiters, SuccessFactors), le crawler interroge directement son API publique : les offres
-sont alors complètes et localisées, même si la page est rendue en JavaScript.
+SmartRecruiters, SuccessFactors, Yello), le crawler interroge directement son API publique : les
+offres sont alors complètes et localisées, même si la page est rendue en JavaScript. Quelques
+employeurs publient sur un site d'offres qui leur est propre, lu de la même façon : Abylsen
+(API de `jobs.abylsen.com`) et Randstad Digital (listes régionales paginées). Ces connecteurs
+ne s'appliquent qu'aux fiches qui les désignent dans `careerSite`, jamais à un lien trouvé sur
+le site d'une autre entreprise.
 
 Les fiches de `src/data/featured-companies.js` (et certaines de `companies-seed.js`) précisent
 le crawl :
 
 | Champ | Rôle |
 |---|---|
-| `careerSite` | Page (ou ATS) crawlée à la place du site corporate |
+| `careerSite` | Page (ou ATS) crawlée à la place du site corporate ; une liste d'URLs quand l'employeur publie sur plusieurs sites (ex. EY : Yello pour Nice et Monaco + SuccessFactors) |
 | `careerUrl` | Page carrières destinée à l'humain (bouton « Site carrières ») |
 | `applyUrl` | Page de candidature spontanée (à défaut : `careerUrl`, puis `site`) |
 | `aliases` | Autres raisons sociales : rattachent doublons de l'annuaire et offres des job boards |
-| `localOnly` | Ne garde que les offres situées dans les Alpes-Maritimes (listes nationales) |
+| `localOnly` | Ne garde que les offres situées dans les Alpes-Maritimes ou à Monaco (listes nationales) |
 | `offerUrlFilter` | Ne garde que les offres dont l'URL contient ce segment (site partagé par un groupe, ex. `/emploi/06/balitrand/` sur le site Ciffréo Bona) |
 | `crawl: false` | Site inexploitable (anti-robot, application JavaScript) : fiche « à consulter sur leur site », sans « 0 offre » trompeur |
 

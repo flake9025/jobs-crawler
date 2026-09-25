@@ -8,7 +8,8 @@ import { normalizeText } from "./util.js";
  * les offres explicitement situées hors des Alpes-Maritimes.
  */
 
-// Communes des Alpes-Maritimes, par ordre de priorité d'affichage.
+// Communes des Alpes-Maritimes (et Monaco, enclavée dans le département), par ordre
+// de priorité d'affichage.
 // [libellé affiché, ...variantes d'écriture]
 const LOCAL_PLACES = [
   ["Sophia Antipolis", "sophia antipolis", "sophia"],
@@ -54,6 +55,7 @@ const LOCAL_PLACES = [
   ["Beausoleil", "beausoleil"],
   ["Roquebrune-Cap-Martin", "roquebrune cap martin"],
   ["Menton", "menton"],
+  ["Monaco", "monaco"],
   ["Saint-Vallier-de-Thiey", "saint vallier de thiey"],
   ["Puget-Théniers", "puget theniers"],
   ["Alpes-Maritimes", "alpes maritimes", "cote d azur"],

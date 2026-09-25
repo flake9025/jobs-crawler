@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { performSearch } from "./search.js";
 import { normalizeText } from "./util.js";
-import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES } from "../data/companies.js";
+import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES, careerSitesOf } from "../data/companies.js";
 import { FEATURED_CATEGORIES } from "../data/featured-companies.js";
 import { loadCache, getCacheJobs, getCacheStatus, getCompanyStats } from "./cache.js";
 import { startWorker, refreshCompanyCache } from "./worker.js";
@@ -80,7 +80,7 @@ app.get("/api/featured-companies", (_req, res) => {
           name: c.name,
           tagline: c.tagline || null,
           site: c.site || null,
-          careerUrl: c.careerUrl || c.careerSite || c.site || null,
+          careerUrl: c.careerUrl || careerSitesOf(c)[0] || c.site || null,
           applyUrl: c.applyUrl || null,
           city: c.city || null,
           crawled: isCrawled(c),
@@ -187,7 +187,7 @@ app.get("/api/companies", (req, res) => {
       status: stat?.status || statusFallback(c),
       jobs: stat?.jobs || 0,
       truncated: Boolean(stat?.truncated),
-      careerUrl: c.careerUrl || stat?.careerUrls?.[0] || c.careerSite || null,
+      careerUrl: c.careerUrl || stat?.careerUrls?.[0] || careerSitesOf(c)[0] || null,
       error: stat?.error || null,
       checkedAt: stat?.checkedAt || null,
     };

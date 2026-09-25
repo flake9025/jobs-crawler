@@ -19,7 +19,7 @@ import { config } from "./config.js";
 
 // À incrémenter quand l'extraction des offres change sensiblement : un cache produit
 // par un crawler antérieur est alors considéré comme périmé et recalculé au démarrage.
-const CACHE_FORMAT = 2;
+const CACHE_FORMAT = 3;
 
 let state = {
   format: CACHE_FORMAT,

@@ -213,14 +213,15 @@ function isoDate(y, m, d) {
 /**
  * Date de publication à partir des libellés hétérogènes des sites carrières :
  * « 12 mai 2026 », « May 12, 2026 », « 12/05/2026 », « il y a 3 jours »,
- * « Posted 30+ Days Ago », « aujourd'hui »… Retourne une date ISO ou null.
+ * « Posted 30+ Days Ago », « aujourd'hui », « 8 septembre » (année déduite),
+ * « Nouveau »… Retourne une date ISO ou null.
  */
 export function parseLooseDate(raw, now = Date.now()) {
   const t = normalizeText(raw || "");
   if (!t) return null;
   const daysAgo = (n) => new Date(now - n * 86400000).toISOString();
 
-  if (/aujourd|today|just posted/.test(t)) return daysAgo(0);
+  if (/aujourd|today|just posted|^(?:nouveau|new)$/.test(t)) return daysAgo(0);
   if (/\bhier\b|yesterday/.test(t)) return daysAgo(1);
   const rel = t.match(/(\d{1,3})\s*\+?\s*(jours?|days?|semaines?|weeks?|mois|months?)\b/);
   if (rel) {
@@ -237,6 +238,13 @@ export function parseLooseDate(raw, now = Date.now()) {
   if (m && MONTHS[m[2]]) return isoDate(+m[3], MONTHS[m[2]], +m[1]);
   m = t.match(/\b([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})\b/);
   if (m && MONTHS[m[1]]) return isoDate(+m[3], MONTHS[m[1]], +m[2]);
+  // Sans année : la plus récente occurrence passée (« 8 septembre » lu en mars → l'an dernier).
+  m = t.match(/\b(\d{1,2})(?:er)?\s+([a-z]+)\b/);
+  if (m && MONTHS[m[2]]) {
+    const year = new Date(now).getUTCFullYear();
+    const date = isoDate(year, MONTHS[m[2]], +m[1]);
+    return date && Date.parse(date) > now + 86400000 ? isoDate(year - 1, MONTHS[m[2]], +m[1]) : date;
+  }
   return null;
 }
 

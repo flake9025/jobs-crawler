@@ -5,7 +5,7 @@ import { searchAggregators, searchLinks } from "./sources/aggregators.js";
 import { searchCompanyCache, companySearchLinks } from "./sources/companies.js";
 import { rankJobs } from "./ranking.js";
 import { getCacheJobs, getCacheStatus, getCompanyStats } from "./cache.js";
-import { findCompany, companyNames } from "../data/companies.js";
+import { findCompany, companyNames, careerSitesOf } from "../data/companies.js";
 
 /** Nom à soumettre aux job boards : « Ampère (Renault Group) » → « Ampère ». */
 function boardSearchName(name) {
@@ -21,7 +21,7 @@ export function companyProfile(name) {
     name: displayName,
     tagline: entry?.tagline || null,
     site: entry?.site || null,
-    careerUrl: entry?.careerUrl || stat?.careerUrls?.[0] || entry?.careerSite || null,
+    careerUrl: entry?.careerUrl || stat?.careerUrls?.[0] || careerSitesOf(entry)[0] || null,
     applyUrl: entry?.applyUrl || null,
     featured: entry?.featured || null,
     crawled: Boolean(entry && (entry.site || entry.careerSite) && entry.crawl !== false),

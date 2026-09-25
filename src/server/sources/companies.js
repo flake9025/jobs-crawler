@@ -8,7 +8,7 @@ import {
 } from "../util.js";
 import { detectLocation } from "../geo.js";
 import { detectAts, findAtsInPage, fetchAtsCandidates, extractSuccessFactorsRows } from "./ats.js";
-import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES, companyNames, findCompany } from "../../data/companies.js";
+import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES, careerSitesOf, companyNames, findCompany } from "../../data/companies.js";
 
 // Chemins fréquents de pages carrières à tester en fallback (si la découverte auto échoue).
 const CAREER_PATHS = [
@@ -432,6 +432,9 @@ function buildOffers(candidates, company) {
         url: c.url,
         source: `Entreprise: ${company.name}`,
         date: parseLooseDate(c.date),
+        // Fournis par certains ATS ; à défaut, déduits de l'intitulé.
+        contractType: c.contractType || null,
+        experience: c.experience || null,
       })
     );
   }
@@ -450,13 +453,13 @@ function preciseLocalLabel(place, parts) {
 }
 
 /** Page carrières connue (souvent une recherche déjà filtrée sur la zone). */
-async function scanCareerSite(company, result) {
-  const first = await loadPage(company.careerSite);
+async function scanCareerSite(careerSite, result) {
+  const first = await loadPage(careerSite);
   if (!first.ok) {
-    result.error = first.error;
+    result.error = result.error || first.error;
     return { candidates: [], reached: false };
   }
-  result.careerUrls.push(company.careerSite);
+  result.careerUrls.push(careerSite);
   const candidates = extractCandidates(first.$, first.url, true);
   // Page carrières "vitrine" qui intègre un ATS (widget Greenhouse, lien Workday…).
   const ats = findAtsInPage(first.$, first.url);
@@ -534,6 +537,7 @@ async function scanCorporateSite(company, result) {
  *  - ATS pris en charge (Workday, Greenhouse, Lever…) : API JSON publique,
  *  - page carrières connue (`careerSite`) : cette page, sa pagination et ses langues,
  *  - sinon : découverte des pages carrières depuis le site corporate.
+ * Plusieurs `careerSite` (ex. EY : jeunes diplômés et expérimentés) sont cumulés.
  *
  * @returns {Promise<{jobs: Array, truncated: boolean, status: string, careerUrls: string[], error: string|null, tookMs: number}>}
  */
@@ -552,23 +556,33 @@ export async function scrapeCompany(company) {
     checkedAt: new Date().toISOString(),
   };
 
-  if (!company.site && !company.careerSite) return result;
+  const careerSites = careerSitesOf(company);
+  if (!company.site && !careerSites.length) return result;
 
+  const describe = (err) => (err.name === "AbortError" ? "timeout" : err.message);
   let candidates = [];
   let reached = false;
   try {
-    const ats = company.careerSite ? detectAts(company.careerSite) : null;
-    if (ats) {
-      candidates = await fetchAtsCandidates(ats, { maxJobs: MAX_OFFERS_PER_COMPANY + 1 });
-      reached = true;
-      result.careerUrls.push(company.careerSite);
-    } else if (company.careerSite) {
-      ({ candidates, reached } = await scanCareerSite(company, result));
-    } else {
-      ({ candidates, reached } = await scanCorporateSite(company, result));
+    for (const careerSite of careerSites) {
+      // Une source en échec n'empêche pas de lire les suivantes.
+      try {
+        const ats = detectAts(careerSite);
+        if (ats) {
+          candidates.push(...(await fetchAtsCandidates(ats, { maxJobs: MAX_OFFERS_PER_COMPANY + 1 })));
+          reached = true;
+          result.careerUrls.push(careerSite);
+        } else {
+          const scan = await scanCareerSite(careerSite, result);
+          candidates.push(...scan.candidates);
+          reached = reached || scan.reached;
+        }
+      } catch (err) {
+        result.error = result.error || describe(err);
+      }
     }
+    if (!careerSites.length) ({ candidates, reached } = await scanCorporateSite(company, result));
   } catch (err) {
-    result.error = err.name === "AbortError" ? "timeout" : err.message;
+    result.error = describe(err);
   }
 
   const offers = buildOffers(candidates, company);
