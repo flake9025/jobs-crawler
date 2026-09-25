@@ -22,8 +22,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 const publicDir = path.join(__dirname, "..", "..", "public");
+// Interface toujours à jour : le navigateur revalide chaque fichier (HTML, JS, CSS, images)
+// à chaque chargement et ne le retélécharge que s'il a changé (sinon 304 via l'ETag) ;
+// « private » interdit aux proxys (réseau d'entreprise) d'en garder une copie.
+const noCache = (res) => res.setHeader("Cache-Control", "no-cache, private");
 app.use(express.json({ limit: "32kb" }));
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, { setHeaders: noCache }));
 
 const isCrawled = (c) => Boolean((c.site || c.careerSite) && c.crawl !== false);
 const statusFallback = (c) => (c.crawl === false ? "link-only" : c.site || c.careerSite ? "pending" : "no-site");
@@ -265,6 +269,7 @@ app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 app.all("/api/*", (_req, res) => res.status(404).json({ error: "Route API inconnue." }));
 
 app.get("*", (_req, res) => {
+  noCache(res);
   res.sendFile(path.join(publicDir, "index.html"));
 });
 

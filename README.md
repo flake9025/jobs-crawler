@@ -29,6 +29,9 @@ sur LinkedIn, l'APEC ou France Travail.
   du catalogue, entreprises qui recrutent le plus, annuaire complet consultable.
 - **Export Excel** des résultats filtrés (avec le statut de chaque offre).
 - **PWA** installable, avec service worker (interface disponible hors ligne, notifications).
+- **Toujours à jour** : chaque fichier de l'interface est revalidé à chaque chargement
+  (`Cache-Control: no-cache`, 304 s'il n'a pas changé), et une page restée ouverte affiche
+  « Nouvelle version disponible · Recharger » dès qu'une nouvelle version est déployée.
 - **Erreurs lisibles** : si l'API est injoignable (coupure réseau, proxy d'entreprise), l'interface
   affiche « Erreur technique : API injoignable » plutôt qu'une erreur JSON.
 
