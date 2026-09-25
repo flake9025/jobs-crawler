@@ -59,6 +59,9 @@ export async function refreshCompanyCache(reason = "manuel") {
     console.log(
       `[worker] refresh terminé : ${jobs.length} offres en ${((Date.now() - started) / 1000).toFixed(0)}s`
     );
+    // Les nouvelles offres des sites carrières n'apparaissent qu'à la fin d'un crawl :
+    // on prévient tout de suite les alertes concernées.
+    checkAlerts().catch((err) => console.error("[alerts] échec vérification post-crawl :", err.message));
   } catch (err) {
     console.error("[worker] erreur refresh :", err.message);
   } finally {

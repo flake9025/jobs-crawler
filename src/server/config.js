@@ -5,6 +5,9 @@ export const config = {
   version: process.env.APP_VERSION || "1.0.0",
   buildSha: process.env.BUILD_SHA || "dev",
   buildDate: process.env.BUILD_DATE || null,
+  // URL publique de l'application (ex. https://jobs.mondomaine.fr) : sert aux liens
+  // « Voir dans l'application » et « Se désabonner » des emails d'alerte.
+  publicUrl: (process.env.PUBLIC_URL || "").replace(/\/+$/, ""),
   franceTravail: {
     clientId: process.env.FRANCE_TRAVAIL_CLIENT_ID || "",
     clientSecret: process.env.FRANCE_TRAVAIL_CLIENT_SECRET || "",

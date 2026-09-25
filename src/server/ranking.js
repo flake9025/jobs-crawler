@@ -1,10 +1,12 @@
 import { normalizeText, tokenize } from "./util.js";
 import { SOPHIA_GEO } from "../data/companies.js";
+import { employerWords } from "./sources/companies.js";
 
 /**
  * Calcule un score de pertinence [0..100] d'une offre par rapport à la requête.
  * Critères :
- *  - correspondance des tokens de la requête dans le titre (fort poids)
+ *  - correspondance des tokens de la requête dans le titre (fort poids), ou dans
+ *    le nom de l'employeur, alias compris (« java amadeus », « ausy »)
  *  - correspondance dans la description (poids moyen)
  *  - localisation dans la zone Sophia (bonus)
  *  - source directe entreprise (léger bonus, offre "au plus près")
@@ -17,15 +19,18 @@ export function scoreJob(job, query) {
   const title = normalizeText(job.title);
   const desc = normalizeText(job.description);
   const loc = normalizeText(job.location);
+  const employer = employerWords(job.company);
 
   let score = 0;
 
-  // Titre : chaque token présent rapporte gros.
+  // Titre : chaque token présent rapporte gros ; le nom de l'employeur un peu moins.
   let titleHits = 0;
+  let employerHits = 0;
   for (const tok of qTokens) {
     if (title.includes(tok)) titleHits++;
+    else if (employer.has(tok)) employerHits++;
   }
-  score += (titleHits / qTokens.length) * 55;
+  score += ((titleHits + employerHits * 0.8) / qTokens.length) * 55;
 
   // Bonus si la requête complète (phrase) apparaît dans le titre.
   if (title.includes(normalizeText(query))) score += 15;

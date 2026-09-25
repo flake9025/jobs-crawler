@@ -16,37 +16,60 @@ function getTransporter() {
   return transporter;
 }
 
+const escapeHtml = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/** Seules les URLs http(s) deviennent des liens (les titres/URLs viennent de sites tiers). */
+const safeUrl = (url) => (/^https?:\/\//i.test(url || "") ? url : null);
+
 /**
  * Envoie un email d'alerte listant les nouvelles offres détectées pour une
  * recherche sauvegardée. Ne fait rien (silencieusement) si le SMTP n'est pas
- * configuré : l'alerting push reste possible sans email.
+ * configuré : les alertes restent visibles dans l'application (cloche) et en push.
  */
-export async function sendAlertEmail({ to, query, jobs }) {
+export async function sendAlertEmail({ alert, label, jobs }) {
   const t = getTransporter();
+  const to = alert?.email;
   if (!t || !to || !jobs.length) return false;
 
   const rows = jobs
     .slice(0, 15)
-    .map(
-      (j) =>
-        `<li><a href="${j.url}">${j.title}</a>${j.company ? ` — <strong>${j.company}</strong>` : ""}${
-          j.location ? ` (${j.location})` : ""
-        }</li>`
-    )
+    .map((j) => {
+      const url = safeUrl(j.url);
+      const title = escapeHtml(j.title);
+      const meta = [j.company, j.location].filter(Boolean).map(escapeHtml).join(" · ");
+      return `<li style="margin:0 0 10px">${url ? `<a href="${escapeHtml(url)}" style="color:#2563eb;font-weight:600">${title}</a>` : `<strong>${title}</strong>`}${
+        meta ? `<br><span style="color:#64748b">${meta}</span>` : ""
+      }</li>`;
+    })
     .join("");
+  const more = jobs.length > 15 ? `<p>… et ${jobs.length - 15} autre(s).</p>` : "";
+
+  const base = config.publicUrl;
+  const id = encodeURIComponent(alert.id);
+  const appLink = base
+    ? `<p><a href="${escapeHtml(`${base}/?alert=${id}`)}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Voir dans Sophia Jobs</a></p>`
+    : "";
+  const unsubscribe = base
+    ? ` <a href="${escapeHtml(`${base}/api/alerts/${id}/unsubscribe`)}" style="color:#64748b">Se désabonner</a>`
+    : "";
 
   const html = `
-    <p>Bonjour,</p>
-    <p><strong>${jobs.length}</strong> nouvelle(s) offre(s) pour votre alerte « ${query} » sur Sophia Jobs :</p>
-    <ul>${rows}</ul>
-    <p style="color:#6b7280;font-size:12px;">Sophia Jobs Crawler — vous recevez cet email car vous avez créé une alerte pour cette recherche.</p>
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;max-width:620px">
+      <p>Bonjour,</p>
+      <p><strong>${jobs.length}</strong> nouvelle(s) offre(s) pour votre alerte ${escapeHtml(label)} :</p>
+      <ul style="padding-left:18px">${rows}</ul>
+      ${more}
+      ${appLink}
+      <p style="color:#64748b;font-size:12px">Sophia Jobs — vous recevez cet email car vous avez créé cette alerte.${unsubscribe}</p>
+    </div>
   `;
 
   try {
     await t.sendMail({
       from: config.smtp.from,
       to,
-      subject: `Sophia Jobs — ${jobs.length} nouvelle(s) offre(s) pour « ${query} »`,
+      subject: `Sophia Jobs — ${jobs.length} nouvelle(s) offre(s) : ${label}`,
       html,
     });
     return true;

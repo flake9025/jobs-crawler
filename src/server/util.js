@@ -164,5 +164,81 @@ export function tokenize(str = "") {
     .filter((t) => t.length > 1);
 }
 
+/** Mots d'un nom d'entreprise (minuscules, sans accents ni ponctuation). */
+export function nameWords(name = "") {
+  return normalizeText(name)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/**
+ * Le nom d'employeur d'une offre correspond-il à l'une des appellations connues ?
+ * Comparaison par suite de mots entiers : « SOPRA STERIA GROUP » correspond à
+ * « Sopra Steria », mais « Westorange » ne correspond pas à « Orange ».
+ */
+export function matchesCompanyName(company, aliases = []) {
+  const words = nameWords(company);
+  if (!words.length) return false;
+  return aliases.some((alias) => {
+    const a = nameWords(alias);
+    if (!a.length || a.length > words.length) return false;
+    for (let i = 0; i + a.length <= words.length; i++) {
+      if (a.every((w, k) => words[i + k] === w)) return true;
+    }
+    return false;
+  });
+}
+
+const MONTHS = {
+  janvier: 1, janv: 1, jan: 1, january: 1,
+  fevrier: 2, fevr: 2, fev: 2, feb: 2, february: 2,
+  mars: 3, mar: 3, march: 3,
+  avril: 4, avr: 4, apr: 4, april: 4,
+  mai: 5, may: 5,
+  juin: 6, jun: 6, june: 6,
+  juillet: 7, juil: 7, jul: 7, july: 7,
+  aout: 8, aug: 8, august: 8,
+  septembre: 9, sept: 9, sep: 9, september: 9,
+  octobre: 10, oct: 10, october: 10,
+  novembre: 11, nov: 11, november: 11,
+  decembre: 12, dec: 12, december: 12,
+};
+
+function isoDate(y, m, d) {
+  if (!y || !m || !d || m > 12 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
+/**
+ * Date de publication à partir des libellés hétérogènes des sites carrières :
+ * « 12 mai 2026 », « May 12, 2026 », « 12/05/2026 », « il y a 3 jours »,
+ * « Posted 30+ Days Ago », « aujourd'hui »… Retourne une date ISO ou null.
+ */
+export function parseLooseDate(raw, now = Date.now()) {
+  const t = normalizeText(raw || "");
+  if (!t) return null;
+  const daysAgo = (n) => new Date(now - n * 86400000).toISOString();
+
+  if (/aujourd|today|just posted/.test(t)) return daysAgo(0);
+  if (/\bhier\b|yesterday/.test(t)) return daysAgo(1);
+  const rel = t.match(/(\d{1,3})\s*\+?\s*(jours?|days?|semaines?|weeks?|mois|months?)\b/);
+  if (rel) {
+    const unit = rel[2];
+    const factor = /semaine|week/.test(unit) ? 7 : /mois|month/.test(unit) ? 30 : 1;
+    return daysAgo(Number(rel[1]) * factor);
+  }
+
+  let m = t.match(/\b(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return isoDate(+m[1], +m[2], +m[3]);
+  m = t.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b/);
+  if (m) return isoDate(+m[3], +m[2], +m[1]);
+  m = t.match(/\b(\d{1,2})(?:er)?\s+([a-z]+)\.?\s+(\d{4})\b/);
+  if (m && MONTHS[m[2]]) return isoDate(+m[3], MONTHS[m[2]], +m[1]);
+  m = t.match(/\b([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})\b/);
+  if (m && MONTHS[m[1]]) return isoDate(+m[3], MONTHS[m[1]], +m[2]);
+  return null;
+}
+
 /** Petite pause. */
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

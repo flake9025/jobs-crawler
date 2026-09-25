@@ -1,18 +1,25 @@
-const crawlState = document.getElementById("crawl-state");
-const crawlBar = document.getElementById("crawl-bar");
-const crawlCurrent = document.getElementById("crawl-current");
-const statsGrid = document.getElementById("stats-grid");
-const coverageEl = document.getElementById("coverage");
-const topCompaniesEl = document.getElementById("top-companies");
-const refreshBtn = document.getElementById("refresh-btn");
+import { escapeHtml, safeUrl, fmt, apiFetch, hydrateIcons, icon } from "/ui.js";
 
-const dirSearch = document.getElementById("dir-search");
-const dirStatus = document.getElementById("dir-status");
-const dirBody = document.getElementById("dir-body");
-const directoryCount = document.getElementById("directory-count");
-const pageInfo = document.getElementById("page-info");
-const prevPage = document.getElementById("prev-page");
-const nextPage = document.getElementById("next-page");
+hydrateIcons();
+
+const $ = (id) => document.getElementById(id);
+const crawlState = $("crawl-state");
+const crawlBar = $("crawl-bar");
+const crawlCurrent = $("crawl-current");
+const statsGrid = $("stats-grid");
+const coverageEl = $("coverage");
+const topCompaniesEl = $("top-companies");
+const refreshBtn = $("refresh-btn");
+const refreshLabel = $("refresh-label");
+const apiError = $("api-error");
+
+const dirSearch = $("dir-search");
+const dirStatus = $("dir-status");
+const dirBody = $("dir-body");
+const directoryCount = $("directory-count");
+const pageInfo = $("page-info");
+const prevPage = $("prev-page");
+const nextPage = $("next-page");
 
 const PAGE_SIZE = 50;
 let page = 1;
@@ -24,16 +31,23 @@ const STATUS_LABELS = {
   unreachable: "Site injoignable",
   error: "Erreur",
   pending: "Pas encore analysée",
+  "link-only": "Consultation sur leur site",
   "no-site": "Sans site connu",
 };
 
-function escapeHtml(s = "") {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
-  );
-}
+/** Nombre d'offres ; « 40+ » quand la liste de l'entreprise a été plafonnée. */
+const jobsLabel = (c) => (c.jobs ? `${fmt(c.jobs)}${c.truncated ? "+" : ""}` : "");
+const companyHref = (name) => `/?company=${encodeURIComponent(name)}`;
+const dateTime = (iso) => new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR");
+// Une erreur par source (statut / annuaire) : l'une ne masque pas l'autre.
+const errors = {};
+function setError(key, err) {
+  errors[key] = err ? err.message || String(err) : null;
+  const message = Object.values(errors).find(Boolean);
+  apiError.innerHTML = message ? `${icon("alert")}<span>${escapeHtml(message)}</span>` : "";
+  apiError.hidden = !message;
+}
 
 function statCard(label, value, hint = "") {
   return `
@@ -45,7 +59,7 @@ function statCard(label, value, hint = "") {
 }
 
 function renderCoverage(status, total) {
-  const order = ["ok", "no-offer", "unreachable", "error", "pending", "no-site"];
+  const order = ["ok", "no-offer", "unreachable", "error", "pending"];
   const rows = order
     .filter((k) => status[k])
     .map((k) => {
@@ -61,7 +75,7 @@ function renderCoverage(status, total) {
 }
 
 async function loadStatus() {
-  const data = await fetch("/api/status").then((r) => r.json());
+  const data = await apiFetch("/api/status");
   const { cache, directory, crawl, offers, topCompanies, sources } = data;
   const progress = cache.progress || {};
 
@@ -70,11 +84,9 @@ async function loadStatus() {
     crawlState.textContent = `Crawl en cours — ${fmt(progress.done)} / ${fmt(progress.total)} entreprises (${pct} %)`;
     crawlBar.style.width = `${pct}%`;
     crawlBar.classList.add("running");
-    crawlCurrent.textContent = progress.current?.length
-      ? `En cours : ${progress.current.slice(0, 6).join(", ")}`
-      : "";
+    crawlCurrent.textContent = progress.current?.length ? `En cours : ${progress.current.slice(0, 6).join(", ")}` : "";
   } else {
-    const updated = cache.updatedAt ? new Date(cache.updatedAt).toLocaleString("fr-FR") : "jamais";
+    const updated = cache.updatedAt ? dateTime(cache.updatedAt) : "jamais";
     crawlState.textContent = `Aucun crawl en cours — dernière mise à jour : ${updated}`;
     crawlBar.style.width = cache.updatedAt ? "100%" : "0%";
     crawlBar.classList.remove("running");
@@ -82,32 +94,46 @@ async function loadStatus() {
   }
 
   statsGrid.innerHTML = [
-    statCard("entreprises dans l'annuaire", directory.total, "sophia-antipolis.fr, Valbonne, OSM"),
-    statCard("sites web crawlés", directory.crawlable, `${fmt(directory.withoutSite)} sans site connu`),
+    statCard("entreprises dans l'annuaire", directory.total, "sophia-antipolis.fr, Valbonne, OSM, sélection"),
+    statCard(
+      "sites carrières analysés",
+      directory.crawlable,
+      `${fmt(directory.withoutSite)} sans site connu · ${fmt(directory.linkOnly)} à consulter sur leur site`
+    ),
     statCard("offres en catalogue", offers.total, "issues des sites d'entreprises"),
-    statCard("offres avec niveau d'xp", offers.withExperience, `${fmt(offers.withContract)} avec type de contrat`),
+    statCard("offres avec niveau d'expérience", offers.withExperience, `${fmt(offers.withContract)} avec type de contrat`),
   ].join("");
 
-  // La couverture se lit par rapport aux entreprises réellement crawlables :
-  // les entreprises sans site connu sont comptées à part, elles ne sont jamais analysées.
+  // La couverture se lit par rapport aux entreprises réellement analysables : celles
+  // sans site connu ou à consulter sur leur site sont comptées à part.
   const byStatus = { ...crawl.byStatus };
   delete byStatus["no-site"];
+  delete byStatus["link-only"];
   const pending = Math.max(0, directory.crawlable - (crawl.analysed || 0));
   renderCoverage({ ...byStatus, pending }, directory.crawlable);
 
   topCompaniesEl.innerHTML =
-    topCompanies.map(
-      (c) =>
-        `<a class="chip" href="${escapeHtml(c.site || "#")}" target="_blank" rel="noopener">${escapeHtml(
-          c.name
-        )} · ${c.jobs}</a>`
-    ).join("") || `<p class="muted">Aucune offre détectée pour l'instant.</p>`;
+    topCompanies
+      .map(
+        (c) =>
+          `<a class="chip" href="${companyHref(c.name)}" title="Voir les offres de ${escapeHtml(c.name)}">${escapeHtml(
+            c.name
+          )} <strong>${jobsLabel(c)}</strong></a>`
+      )
+      .join("") || `<p class="muted">Aucune offre détectée pour l'instant.</p>`;
 
   if (!sources.scrapers) {
-    crawlCurrent.textContent = "⚠ Scrapers désactivés (ENABLE_SCRAPERS=false) : aucun crawl ne sera lancé.";
+    crawlCurrent.innerHTML = `${icon("alert")} Scrapers désactivés (ENABLE_SCRAPERS=false) : aucun crawl ne sera lancé.`;
   }
 
   return cache.refreshing;
+}
+
+function siteCell(c) {
+  const href = c.careerUrl || c.site;
+  if (!href) return `<span class="muted">—</span>`;
+  const label = (c.site || href).replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+  return `<a href="${safeUrl(href)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
 }
 
 async function loadDirectory() {
@@ -115,7 +141,14 @@ async function loadDirectory() {
   if (dirSearch.value.trim()) params.set("search", dirSearch.value.trim());
   if (dirStatus.value) params.set("status", dirStatus.value);
 
-  const data = await fetch(`/api/companies?${params}`).then((r) => r.json());
+  let data;
+  try {
+    data = await apiFetch(`/api/companies?${params}`);
+    setError("directory", null);
+  } catch (err) {
+    setError("directory", err);
+    return;
+  }
   totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
 
   directoryCount.textContent = `${fmt(data.total)} entreprise(s)`;
@@ -126,22 +159,17 @@ async function loadDirectory() {
   dirBody.innerHTML =
     data.companies
       .map((c) => {
-        const site = c.site
-          ? `<a href="${escapeHtml(c.careerUrl || c.site)}" target="_blank" rel="noopener">${escapeHtml(
-              c.site.replace(/^https?:\/\/(www\.)?/, "")
-            )}</a>`
-          : `<span class="muted">—</span>`;
-        const checked = c.checkedAt ? new Date(c.checkedAt).toLocaleString("fr-FR") : "—";
+        const star = c.featured
+          ? `<span class="featured-star" title="À la une dans l'onglet Entreprises">${icon("star")}</span>`
+          : "";
         const error = c.error ? `<span class="muted small"> (${escapeHtml(c.error)})</span>` : "";
         return `
           <tr>
-            <td>${escapeHtml(c.name)}</td>
-            <td>${site}</td>
-            <td><span class="badge ${escapeHtml(c.status)}">${escapeHtml(
-              STATUS_LABELS[c.status] || c.status
-            )}</span>${error}</td>
-            <td class="num">${c.jobs || ""}</td>
-            <td class="muted small">${escapeHtml(checked)}</td>
+            <td><a href="${companyHref(c.name)}" title="Voir les offres">${escapeHtml(c.name)}</a>${star}</td>
+            <td>${siteCell(c)}</td>
+            <td><span class="badge ${escapeHtml(c.status)}">${escapeHtml(STATUS_LABELS[c.status] || c.status)}</span>${error}</td>
+            <td class="num">${jobsLabel(c)}</td>
+            <td class="muted small">${c.checkedAt ? escapeHtml(dateTime(c.checkedAt)) : "—"}</td>
           </tr>`;
       })
       .join("") || `<tr><td colspan="5" class="empty">Aucune entreprise ne correspond.</td></tr>`;
@@ -178,14 +206,17 @@ nextPage.addEventListener("click", () => {
 
 refreshBtn.addEventListener("click", async () => {
   refreshBtn.disabled = true;
-  refreshBtn.textContent = "⟳ Crawl lancé…";
+  refreshLabel.textContent = "Crawl lancé…";
   try {
-    await fetch("/api/cache/refresh", { method: "POST" });
+    await apiFetch("/api/cache/refresh", { method: "POST" });
+    setError("status", null);
     await loadStatus();
+  } catch (err) {
+    setError("status", err);
   } finally {
     setTimeout(() => {
       refreshBtn.disabled = false;
-      refreshBtn.textContent = "⟳ Relancer le crawl";
+      refreshLabel.textContent = "Relancer le crawl";
     }, 3000);
   }
 });
@@ -195,8 +226,9 @@ async function tick() {
   let refreshing = false;
   try {
     refreshing = await loadStatus();
-  } catch {
-    /* le serveur redémarre peut-être */
+    setError("status", null);
+  } catch (err) {
+    setError("status", err);
   }
   setTimeout(tick, refreshing ? 2000 : 15000);
 }

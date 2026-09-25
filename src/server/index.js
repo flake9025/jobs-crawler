@@ -8,15 +8,25 @@ import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES } from "../data/companies.js";
 import { FEATURED_CATEGORIES } from "../data/featured-companies.js";
 import { loadCache, getCacheJobs, getCacheStatus, getCompanyStats } from "./cache.js";
 import { startWorker, refreshCompanyCache } from "./worker.js";
-import { loadAlerts, listAlerts, createAlert, deleteAlert, addPushSubscription } from "./alerts.js";
+import {
+  loadAlerts,
+  getAlert,
+  createAlert,
+  deleteAlert,
+  acknowledgeAlert,
+  addPushSubscription,
+} from "./alerts.js";
 import { isPushEnabled, getPublicKey } from "./push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 const publicDir = path.join(__dirname, "..", "..", "public");
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
 app.use(express.static(publicDir));
+
+const isCrawled = (c) => Boolean((c.site || c.careerSite) && c.crawl !== false);
+const statusFallback = (c) => (c.crawl === false ? "link-only" : c.site || c.careerSite ? "pending" : "no-site");
 
 app.get("/api/version", (_req, res) => {
   res.json({
@@ -26,62 +36,87 @@ app.get("/api/version", (_req, res) => {
   });
 });
 
-// --- API : recherche d'emploi (rapide) ---
+// --- API : capacités du serveur (canaux d'alerte disponibles) ---
+app.get("/api/config", (_req, res) => {
+  res.json({
+    version: config.version,
+    emailEnabled: config.smtp.enabled,
+    pushEnabled: isPushEnabled(),
+    vapidPublicKey: getPublicKey() || null,
+    alertsCheckMinutes: config.alertsCheckMinutes,
+  });
+});
+
+// --- API : recherche d'emploi (mots-clés et/ou entreprise) ---
 app.get("/api/search", async (req, res) => {
-  const query = (req.query.q || "").toString().trim();
-  if (!query) {
-    return res.status(400).json({ error: "Paramètre 'q' (intitulé de poste) requis." });
+  const query = (req.query.q || "").toString().trim().slice(0, 200);
+  const company = (req.query.company || "").toString().trim().slice(0, 150);
+  if (!query && !company) {
+    return res.status(400).json({ error: "Paramètre 'q' (intitulé de poste) ou 'company' requis." });
   }
 
-  const result = await performSearch(query);
+  const result = await performSearch(query, { company });
   res.json(result);
 });
 
-// --- API : entreprises vedettes (Top 15, startups, ESN…) pour l'onglet "Entreprises" ---
+// --- API : entreprises vedettes (grands employeurs, startups, ESN…) pour l'onglet "Entreprises" ---
 app.get("/api/featured-companies", (_req, res) => {
-  const jobs = getCacheJobs();
-  const countFor = (name) => {
-    const n = normalizeText(name);
-    return jobs.filter((j) => normalizeText(j.company) === n).length;
-  };
+  const counts = new Map();
+  for (const j of getCacheJobs()) counts.set(j.company, (counts.get(j.company) || 0) + 1);
+  const statsByName = new Map(getCompanyStats().map((s) => [s.name, s]));
 
   res.json({
     categories: FEATURED_CATEGORIES.map((cat) => ({
       id: cat.id,
       label: cat.label,
       description: cat.description,
-      companies: cat.companies.map((c) => ({ ...c, cachedJobs: countFor(c.name) })),
+      companies: cat.companies.map((c) => {
+        const stat = statsByName.get(c.name);
+        return {
+          name: c.name,
+          tagline: c.tagline || null,
+          site: c.site || null,
+          careerUrl: c.careerUrl || c.careerSite || c.site || null,
+          applyUrl: c.applyUrl || null,
+          city: c.city || null,
+          crawled: isCrawled(c),
+          status: stat?.status || statusFallback(c),
+          jobs: counts.get(c.name) || 0,
+          truncated: Boolean(stat?.truncated),
+          checkedAt: stat?.checkedAt || null,
+        };
+      }),
     })),
   });
 });
 
-// --- API : offres en cache pour une entreprise donnée (bouton "Voir les offres") ---
-app.get("/api/company-jobs", (req, res) => {
-  const name = normalizeText((req.query.name || "").toString());
-  if (!name) return res.status(400).json({ error: "Paramètre 'name' requis." });
-  const jobs = getCacheJobs().filter((j) => normalizeText(j.company) === name);
-  res.json({ jobs });
-});
-
 // --- API : alertes "nouvelles offres" (recherche sauvegardée + notifications) ---
-app.get("/api/alerts", (_req, res) => {
-  res.json({
-    alerts: listAlerts(),
-    pushEnabled: isPushEnabled(),
-    emailEnabled: config.smtp.enabled,
-    vapidPublicKey: getPublicKey(),
-  });
-});
-
+// Pas de route de listing : l'identifiant (aléatoire) d'une alerte sert de clé d'accès.
 app.post("/api/alerts", async (req, res) => {
-  const query = (req.body?.query || "").toString().trim();
-  const email = (req.body?.email || "").toString().trim();
-  if (!query) return res.status(400).json({ error: "Le champ 'query' est requis." });
+  const query = (req.body?.query || "").toString().trim().slice(0, 200);
+  const company = (req.body?.company || "").toString().trim().slice(0, 150);
+  const email = (req.body?.email || "").toString().trim().slice(0, 254);
+  if (!query && !company) return res.status(400).json({ error: "Le champ 'query' ou 'company' est requis." });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: "Adresse email invalide." });
   }
-  const alert = await createAlert({ query, email });
-  res.json({ id: alert.id });
+  try {
+    res.json(await createAlert({ query, company, email }));
+  } catch (err) {
+    res.status(429).json({ error: err.message });
+  }
+});
+
+app.get("/api/alerts/:id", (req, res) => {
+  const alert = getAlert(req.params.id);
+  if (!alert) return res.status(404).json({ error: "Alerte introuvable." });
+  res.json(alert);
+});
+
+app.post("/api/alerts/:id/ack", async (req, res) => {
+  const ok = await acknowledgeAlert(req.params.id);
+  if (!ok) return res.status(404).json({ error: "Alerte introuvable." });
+  res.json({ acknowledged: true });
 });
 
 app.delete("/api/alerts/:id", async (req, res) => {
@@ -96,6 +131,35 @@ app.post("/api/alerts/:id/subscribe", async (req, res) => {
   const ok = await addPushSubscription(req.params.id, subscription);
   if (!ok) return res.status(404).json({ error: "Alerte introuvable." });
   res.json({ subscribed: true });
+});
+
+// Désinscription depuis l'email : GET affiche une confirmation (les antivirus et
+// messageries qui pré-chargent les liens ne doivent pas supprimer l'alerte), POST supprime.
+const htmlPage = (title, body) => `<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} — Sophia Jobs</title>
+<style>body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f5f7fb;color:#0f172a;display:grid;place-items:center;min-height:100vh;margin:0}
+main{background:#fff;border-radius:18px;box-shadow:0 10px 30px rgba(15,23,42,.08);padding:32px;max-width:440px;text-align:center}
+h1{font-size:1.3rem}button,a.btn{display:inline-block;border:0;border-radius:999px;padding:11px 20px;font:inherit;font-weight:600;cursor:pointer;background:#2563eb;color:#fff;text-decoration:none}
+p{color:#475569;line-height:1.5}</style></head><body><main>${body}</main></body></html>`;
+
+app.get("/api/alerts/:id/unsubscribe", (req, res) => {
+  const alert = getAlert(req.params.id);
+  if (!alert) {
+    return res.send(htmlPage("Alerte introuvable", `<h1>Alerte introuvable</h1><p>Cette alerte a déjà été supprimée.</p><a class="btn" href="/">Ouvrir Sophia Jobs</a>`));
+  }
+  res.send(
+    htmlPage(
+      "Se désabonner",
+      `<h1>Se désabonner de cette alerte ?</h1><p>Vous ne recevrez plus d'email ni de notification pour cette recherche.</p>
+       <form method="post"><button type="submit">Confirmer la désinscription</button></form>`
+    )
+  );
+});
+
+app.post("/api/alerts/:id/unsubscribe", async (req, res) => {
+  await deleteAlert(req.params.id);
+  res.send(htmlPage("Désabonné", `<h1>C'est fait</h1><p>L'alerte a été supprimée.</p><a class="btn" href="/">Ouvrir Sophia Jobs</a>`));
 });
 
 // --- API : entreprises suivies (catalogue paginé et filtrable) ---
@@ -115,9 +179,11 @@ app.get("/api/companies", (req, res) => {
       site: c.site || null,
       sectors: c.sectors || [],
       sources: c.sources || [],
-      status: stat?.status || (c.site ? "pending" : "no-site"),
+      featured: c.featured || null,
+      status: stat?.status || statusFallback(c),
       jobs: stat?.jobs || 0,
-      careerUrl: stat?.careerUrls?.[0] || null,
+      truncated: Boolean(stat?.truncated),
+      careerUrl: c.careerUrl || stat?.careerUrls?.[0] || c.careerSite || null,
       error: stat?.error || null,
       checkedAt: stat?.checkedAt || null,
     };
@@ -151,16 +217,21 @@ app.get("/api/status", (_req, res) => {
     .filter((s) => s.jobs > 0)
     .sort((a, b) => b.jobs - a.jobs)
     .slice(0, 20)
-    .map((s) => ({ name: s.name, jobs: s.jobs, site: s.site }));
+    .map((s) => ({ name: s.name, jobs: s.jobs, site: s.site, truncated: Boolean(s.truncated) }));
 
+  const withSite = SOPHIA_COMPANIES.filter((c) => c.site || c.careerSite).length;
   res.json({
     cache: getCacheStatus(),
     directory: {
       total: SOPHIA_COMPANIES.length,
       crawlable: CRAWLABLE_COMPANIES.length,
-      withoutSite: SOPHIA_COMPANIES.length - CRAWLABLE_COMPANIES.length,
+      withoutSite: SOPHIA_COMPANIES.length - withSite,
+      linkOnly: withSite - CRAWLABLE_COMPANIES.length,
     },
-    crawl: { byStatus, analysed: stats.filter((s) => s.status !== "no-site").length },
+    crawl: {
+      byStatus,
+      analysed: stats.filter((s) => s.status !== "no-site" && s.status !== "link-only").length,
+    },
     offers: {
       total: jobs.length,
       withContract: jobs.filter((j) => j.contractType).length,
@@ -191,6 +262,8 @@ app.post("/api/cache/refresh", (_req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
+app.all("/api/*", (_req, res) => res.status(404).json({ error: "Route API inconnue." }));
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
@@ -215,7 +288,8 @@ async function start() {
     console.log(`  Scrapers           : ${config.enableScrapers ? "activés" : "désactivés"}`);
     console.log(`  Entreprises suivies : ${SOPHIA_COMPANIES.length} (dont ${CRAWLABLE_COMPANIES.length} crawlables)`);
     console.log(`  Alertes email      : ${config.smtp.enabled ? "activées (SMTP configuré)" : "désactivées (SMTP absent)"}`);
-    console.log(`  Alertes push       : ${isPushEnabled() ? "activées (VAPID configuré)" : "désactivées (VAPID absent, npm run vapid:generate)"}`);
+    console.log(`  Alertes push       : ${isPushEnabled() ? "activées (VAPID configuré, HTTPS requis côté navigateur)" : "désactivées (VAPID absent, npm run vapid:generate)"}`);
+    if (!config.publicUrl) console.log("  PUBLIC_URL         : non défini (emails sans lien vers l'application)");
     // Lance le worker de fond (cache entreprises).
     startWorker();
   });

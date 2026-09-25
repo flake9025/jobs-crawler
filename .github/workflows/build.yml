@@ -120,7 +120,7 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            APP_VERSION=1.1.0
+            APP_VERSION=1.2.0
             BUILD_SHA=${{ github.sha }}
             BUILD_DATE=${{ github.event.head_commit.timestamp || '' }}
           tags: ${{ steps.meta.outputs.tags }}

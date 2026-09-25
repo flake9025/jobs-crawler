@@ -9,13 +9,20 @@ import { config } from "./config.js";
  *
  * Structure du fichier :
  * {
+ *   format: <CACHE_FORMAT>,
  *   updatedAt: <ISO string | null>,
- *   refreshing: false,
- *   jobs: [ { title, company, location, url, source, ... }, ... ]
+ *   partial: false,
+ *   jobs: [ { title, company, location, url, source, ... }, ... ],
+ *   companies: [ { name, status, jobs, truncated, careerUrls, ... }, ... ]
  * }
  */
 
+// À incrémenter quand l'extraction des offres change sensiblement : un cache produit
+// par un crawler antérieur est alors considéré comme périmé et recalculé au démarrage.
+const CACHE_FORMAT = 2;
+
 let state = {
+  format: CACHE_FORMAT,
   updatedAt: null,
   refreshing: false,
   // true quand le cache est un instantané pris au milieu d'un crawl interrompu.
@@ -32,6 +39,7 @@ export async function loadCache() {
   try {
     const raw = await fs.readFile(config.cache.file, "utf-8");
     const parsed = JSON.parse(raw);
+    state.format = parsed.format || 1;
     state.updatedAt = parsed.updatedAt || null;
     state.partial = Boolean(parsed.partial);
     state.jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
@@ -58,6 +66,7 @@ async function persist() {
       config.cache.file,
       JSON.stringify(
         {
+          format: state.format,
           updatedAt: state.updatedAt,
           partial: state.partial,
           jobs: state.jobs,
@@ -77,6 +86,7 @@ async function persist() {
 export async function setCacheJobs(jobs, companies = null) {
   state.jobs = jobs;
   if (Array.isArray(companies)) state.companies = companies;
+  state.format = CACHE_FORMAT;
   state.updatedAt = new Date().toISOString();
   state.partial = false;
   await persist();
@@ -89,6 +99,7 @@ export async function setCacheJobs(jobs, companies = null) {
 export async function saveCheckpoint(jobs, companies) {
   state.jobs = [...jobs];
   state.companies = [...companies];
+  state.format = CACHE_FORMAT;
   state.updatedAt = new Date().toISOString();
   state.partial = true;
   await persist();
@@ -134,6 +145,8 @@ export function setRefreshing(v) {
 export function isStale() {
   if (!state.updatedAt) return true;
   if (!state.companies.length) return true;
+  // Cache produit par une version antérieure du crawler.
+  if (state.format !== CACHE_FORMAT) return true;
   // Crawl interrompu (redémarrage du conteneur) : on reprend sans attendre.
   if (state.partial) return true;
   const ageMin = (Date.now() - new Date(state.updatedAt).getTime()) / 60000;

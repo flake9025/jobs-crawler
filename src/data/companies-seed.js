@@ -1,43 +1,28 @@
 // Liste curatée d'entreprises de Sophia Antipolis (socle historique, sites vérifiés à la main).
 // Elle est fusionnée avec l'annuaire généré (companies.json) par src/data/companies.js.
 // Pour régénérer l'annuaire : npm run fetch:companies
+//
+// Les grands employeurs de l'onglet « Entreprises » (Amadeus, Thales, Atos…) sont
+// décrits dans featured-companies.js, fusionné avant cette liste.
 
+const CIFFREO_BONA_JOBS = "https://corporate.ciffreobona.fr/departement/06/?post_types=stm_careers";
 
 export const SEED_COMPANIES = [
-  // Grands employeurs : les offres sont publiées sur un ATS distinct du site corporate.
+  // Groupe Ciffréo Bona : un seul site d'offres pour toutes les enseignes du groupe,
+  // `offerUrlFilter` isole celles de chaque marque (/emploi/06/balitrand/…).
   {
-    name: "PRO BTP",
-    site: "https://probtp.com",
-    careerSite:
-      "https://recrute-probtp.talent-soft.com/offre-de-emploi/liste-toutes-offres.aspx?changefacet=1&facet_JobRegion=217",
+    name: "Balitrand",
+    site: "https://www.balitrand.fr",
+    careerSite: CIFFREO_BONA_JOBS,
+    offerUrlFilter: "/emploi/06/balitrand/",
+    city: "Antibes",
   },
   {
-    name: "Amadeus",
-    site: "https://amadeus.com",
-    careerSite: "https://amadeus.wd502.myworkdayjobs.com/jobs",
-  },
-  {
-    name: "Orange",
-    site: "https://orange.jobs",
-    careerSite:
-      "https://orange.jobs/fr/fr/search-results?p=ChIJvUmYZ1gpzBIRlSJcMrwF10o&location=Valbonne%2C%20France",
-  },
-  {
-    name: "Air France",
-    site: "https://www.airfrance.com",
-    careerSite: "https://recrutement.airfrance.com/offre-de-emploi/liste-offres.aspx",
-  },
-  {
-    name: "Atos",
-    site: "https://atos.net",
-    careerSite:
-      "https://jobs.atos.net/search/?createNewAlert=false&q=&locationsearch=valbonne&optionsFacetsDD_country=&optionsFacetsDD_city=&optionsFacetsDD_customfield2=",
-  },
-  {
-    name: "GIEPS",
-    site: "https://carriere.gieps.fr",
-    careerSite:
-      "https://carriere.gieps.fr/fr/gieps/offers#block-051c70c4-d5cc-4777-9fd8-a78d06efc2c2",
+    name: "Ciffréo Bona",
+    site: "https://www.ciffreobona.fr",
+    careerSite: CIFFREO_BONA_JOBS,
+    offerUrlFilter: "/emploi/06/ciffreo-bona/",
+    aliases: ["Ets Ciffreo Et Bona"],
   },
   { name: "Nexess Solutions", site: "https://www.nexess-solutions.com" },
   { name: "Himyday", site: "https://www.himyday.com" },

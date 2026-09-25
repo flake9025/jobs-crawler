@@ -3,135 +3,265 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a2540" />
-    <meta name="description" content="Recherche d'emploi agrégée sur la zone de Sophia Antipolis" />
+    <meta name="theme-color" content="#1d4ed8" />
+    <meta name="description" content="Toutes les offres d'emploi de Sophia Antipolis réunies : job boards et sites carrières des entreprises de la technopole." />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="icon" href="/icons/logo.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="stylesheet" href="/styles.css" />
     <title>Sophia Jobs — Emploi à Sophia Antipolis</title>
   </head>
   <body>
-    <header class="header">
-      <div class="brand">
-        <span class="logo">◆</span>
-        <div>
-          <h1>Sophia Jobs</h1>
-          <p class="subtitle">Recherche d'emploi sur la zone de Sophia Antipolis</p>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/" data-nav="home">
+          <img src="/icons/logo.svg" alt="" width="34" height="34" />
+          <span class="brand-name">Sophia<strong>Jobs</strong></span>
+        </a>
+        <nav class="segmented" aria-label="Sections">
+          <a href="/" data-nav="search" class="active"><span data-icon="search"></span>Offres</a>
+          <a href="/#entreprises" data-nav="companies"><span data-icon="briefcase"></span>Entreprises</a>
+        </nav>
+        <div class="topbar-actions">
+          <button type="button" id="bell-btn" class="icon-btn" aria-label="Mes alertes" title="Mes alertes">
+            <span data-icon="bell"></span>
+            <span id="bell-badge" class="bell-badge" hidden></span>
+          </button>
+          <a href="/status.html" class="icon-btn" aria-label="Catalogue et statut" title="Catalogue &amp; statut">
+            <span data-icon="bar-chart"></span>
+          </a>
         </div>
-        <a class="header-link" href="/status.html">📊 Catalogue &amp; statut</a>
       </div>
-      <nav class="tabs">
-        <button type="button" class="tab-btn active" data-tab="search">🔎 Recherche</button>
-        <button type="button" class="tab-btn" data-tab="companies">🏢 Entreprises</button>
-      </nav>
     </header>
 
-    <main class="container">
-      <section id="tab-search" class="tab-panel">
-      <form id="search-form" class="search-bar">
-        <input
-          id="query"
-          type="search"
-          placeholder="Intitulé de poste (ex: développeur, data engineer, chef de projet…)"
-          autocomplete="off"
-          required
-        />
-        <button type="submit" id="search-btn">Rechercher</button>
-      </form>
+    <!-- ================= Onglet Offres ================= -->
+    <main id="tab-search" class="tab">
+      <section id="hero" class="hero">
+        <div class="hero-inner">
+          <h1 class="hero-title">Votre prochain poste à <span>Sophia Antipolis</span></h1>
+          <p class="hero-sub">
+            Les offres de France Travail, APEC, HelloWork, Welcome to the Jungle et des sites carrières
+            des entreprises de la technopole, réunies en une seule recherche.
+          </p>
 
-      <div id="crawl-banner" class="crawl-banner" hidden>
-        <div class="crawl-banner-head">
-          <span id="crawl-banner-label">Analyse des entreprises en cours…</span>
-          <span id="crawl-banner-count"></span>
+          <form id="search-form" class="searchbox" role="search">
+            <span class="searchbox-icon" data-icon="search"></span>
+            <input
+              id="query"
+              type="search"
+              placeholder="Métier, compétence… (ex : développeur Java, data engineer)"
+              autocomplete="off"
+              aria-label="Intitulé de poste ou compétence"
+            />
+            <button type="submit" id="search-btn" class="btn btn-primary">Rechercher</button>
+          </form>
+
+          <div class="suggestions" id="suggestions" aria-label="Suggestions de recherche">
+            <button type="button" data-q="Développeur">Développeur</button>
+            <button type="button" data-q="Data engineer">Data engineer</button>
+            <button type="button" data-q="DevOps">DevOps</button>
+            <button type="button" data-q="Chef de projet">Chef de projet</button>
+            <button type="button" data-q="Cybersécurité">Cybersécurité</button>
+            <button type="button" data-q="Alternance">Alternance</button>
+            <button type="button" data-q="Stage">Stage</button>
+          </div>
+
+          <p id="hero-stats" class="hero-stats"></p>
+          <div id="crawl-banner" class="crawl" hidden>
+            <span id="crawl-label">Mise à jour du catalogue en cours…</span>
+            <span class="progress"><span id="crawl-bar" class="progress-bar"></span></span>
+          </div>
         </div>
-        <div class="progress"><div id="crawl-banner-bar" class="progress-bar"></div></div>
-      </div>
-
-      <div id="status" class="status" hidden></div>
-
-      <div id="alert-panel" class="alert-panel" hidden>
-        <div class="alert-panel-row">
-          <span>🔔 Être alerté des nouvelles offres pour cette recherche :</span>
-          <input id="alert-email" type="email" placeholder="email (optionnel)" />
-          <button type="button" id="alert-create-btn" class="link-btn strong">Créer l'alerte</button>
-        </div>
-        <p id="alert-status" class="small muted" hidden></p>
-      </div>
-
-      <div id="filters" class="filters" hidden>
-        <label class="filter">
-          <span>Expérience</span>
-          <select id="filter-level">
-            <option value="">Tous niveaux</option>
-            <option value="debutant">Débutant (&lt; 2 ans)</option>
-            <option value="confirme">Confirmé (2 à 4 ans)</option>
-            <option value="expert">Expert (5 ans et +)</option>
-            <option value="inconnu">Non précisé</option>
-          </select>
-        </label>
-
-        <label class="filter">
-          <span>Contrat</span>
-          <select id="filter-contract">
-            <option value="">Tous contrats</option>
-            <option value="CDI">CDI</option>
-            <option value="CDD">CDD</option>
-            <option value="Alternance">Alternance</option>
-            <option value="Stage">Stage</option>
-            <option value="Freelance">Freelance</option>
-            <option value="Intérim">Intérim</option>
-            <option value="inconnu">Non précisé</option>
-          </select>
-        </label>
-
-        <label class="filter">
-          <span>Tri</span>
-          <select id="sort-by">
-            <option value="score">Pertinence</option>
-            <option value="date">Fraîcheur (plus récentes d'abord)</option>
-            <option value="company">Entreprise (A → Z)</option>
-          </select>
-        </label>
-
-        <button type="button" id="reset-filters" class="link-btn">Réinitialiser</button>
-      </div>
-
-      <div id="results-toolbar" class="results-toolbar" hidden>
-        <span id="results-summary"></span>
-        <button id="export-btn" type="button" class="export-btn">⬇ Exporter Excel</button>
-      </div>
-
-      <section id="results" class="results" aria-live="polite"></section>
-
-      <details id="links-panel" class="links-panel" hidden>
-        <summary>Liens de recherche directs sur les grands sites</summary>
-        <div id="search-links" class="chips"></div>
-      </details>
-
-      <details id="company-panel" class="links-panel" hidden>
-        <summary>Entreprises de Sophia avec une offre correspondante</summary>
-        <div id="company-links" class="chips"></div>
-      </details>
       </section>
 
-      <section id="tab-companies" class="tab-panel" hidden>
-        <p class="muted small">
-          Sélection éditoriale des entreprises emblématiques de la technopole. « Voir les offres »
-          cherche d'abord dans notre catalogue interne, puis renvoie vers le site de l'entreprise.
-        </p>
-        <div id="featured-companies"></div>
-      </section>
+      <div class="container">
+        <section id="company-banner" class="company-banner" hidden></section>
+
+        <div id="status" class="notice" role="status" hidden></div>
+
+        <div id="results-toolbar" class="toolbar" hidden>
+          <div class="toolbar-summary">
+            <strong id="results-count"></strong>
+            <span id="results-context" class="muted"></span>
+          </div>
+          <div class="toolbar-actions">
+            <button type="button" id="alert-toggle" class="btn btn-soft"><span data-icon="bell"></span>Créer une alerte</button>
+            <button type="button" id="export-btn" class="btn btn-ghost"><span data-icon="download"></span>Excel</button>
+          </div>
+        </div>
+
+        <section id="alert-panel" class="card alert-panel" hidden aria-labelledby="alert-title">
+          <div class="alert-panel-head">
+            <span class="alert-panel-icon" data-icon="bell"></span>
+            <div>
+              <h2 id="alert-title">Être prévenu des nouvelles offres</h2>
+              <p id="alert-subject" class="muted"></p>
+            </div>
+            <button type="button" class="icon-btn" id="alert-close" aria-label="Fermer"><span data-icon="x"></span></button>
+          </div>
+          <div class="alert-channels">
+            <label class="channel">
+              <input type="checkbox" checked disabled />
+              <span>
+                <strong>Dans l'application</strong>
+                <small>Une pastille s'affiche sur la cloche dès qu'une nouvelle offre paraît.</small>
+              </span>
+            </label>
+            <label class="channel" id="push-channel">
+              <input type="checkbox" id="alert-push" />
+              <span>
+                <strong>Notification du navigateur</strong>
+                <small id="push-hint">Même quand l'onglet est fermé.</small>
+              </span>
+            </label>
+            <label class="channel" id="email-channel">
+              <input type="checkbox" id="alert-email-toggle" />
+              <span>
+                <strong>Par email</strong>
+                <small id="email-hint">Un récapitulatif à chaque nouveauté.</small>
+                <input id="alert-email" type="email" placeholder="vous@exemple.fr" autocomplete="email" hidden />
+              </span>
+            </label>
+          </div>
+          <div class="alert-panel-foot">
+            <button type="button" id="alert-create-btn" class="btn btn-primary">Créer l'alerte</button>
+            <p id="alert-feedback" class="small" role="status" hidden></p>
+          </div>
+        </section>
+
+        <div id="filters" class="filters" hidden>
+          <label class="select">
+            <span>Expérience</span>
+            <select id="filter-level">
+              <option value="">Tous niveaux</option>
+              <option value="debutant">Débutant (&lt; 2 ans)</option>
+              <option value="confirme">Confirmé (2 à 4 ans)</option>
+              <option value="expert">Expert (5 ans et +)</option>
+              <option value="inconnu">Non précisé</option>
+            </select>
+          </label>
+          <label class="select">
+            <span>Contrat</span>
+            <select id="filter-contract">
+              <option value="">Tous contrats</option>
+              <option value="CDI">CDI</option>
+              <option value="CDD">CDD</option>
+              <option value="Alternance">Alternance</option>
+              <option value="Stage">Stage</option>
+              <option value="Freelance">Freelance</option>
+              <option value="Intérim">Intérim</option>
+              <option value="inconnu">Non précisé</option>
+            </select>
+          </label>
+          <label class="select">
+            <span>Tri</span>
+            <select id="sort-by">
+              <option value="score">Pertinence</option>
+              <option value="date">Plus récentes</option>
+              <option value="company">Entreprise (A → Z)</option>
+            </select>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="hide-ignored" />
+            <span class="switch-track"></span>
+            <span>Masquer les offres ignorées</span>
+          </label>
+          <button type="button" id="reset-filters" class="btn btn-link">Réinitialiser</button>
+        </div>
+
+        <section id="results" class="results" aria-live="polite"></section>
+
+        <section id="more-links" class="more-links" hidden>
+          <div id="links-block" hidden>
+            <h3>Chercher aussi sur</h3>
+            <div id="search-links" class="chips"></div>
+          </div>
+          <div id="company-links-block" hidden>
+            <h3>Entreprises de Sophia avec une offre correspondante</h3>
+            <div id="company-links" class="chips"></div>
+          </div>
+        </section>
+
+        <!-- Accueil (masqué dès qu'une recherche est affichée) -->
+        <section id="home" class="home">
+          <div id="home-recruiters" hidden>
+            <div class="home-head">
+              <div>
+                <h2>Ils recrutent en ce moment</h2>
+                <p class="muted">Offres publiées sur les sites carrières des grands employeurs, startups et ESN de la technopole.</p>
+              </div>
+              <a href="/#entreprises" data-nav="companies" class="btn btn-ghost btn-sm">Toutes les entreprises<span data-icon="arrow-right"></span></a>
+            </div>
+            <div id="home-companies" class="home-companies"></div>
+          </div>
+          <div class="features">
+            <article class="feature">
+              <span class="feature-icon" data-icon="search"></span>
+              <h3>Une seule recherche</h3>
+              <p>France Travail, APEC, HelloWork, Welcome to the Jungle et les sites carrières des entreprises locales, interrogés en même temps.</p>
+            </article>
+            <article class="feature">
+              <span class="feature-icon" data-icon="bell"></span>
+              <h3>Alertes nouvelles offres</h3>
+              <p>Suivez une recherche ou une entreprise : pastille sur la cloche, notification ou email dès qu'une offre paraît.</p>
+            </article>
+            <article class="feature">
+              <span class="feature-icon" data-icon="check-circle"></span>
+              <h3>Suivi de vos candidatures</h3>
+              <p>Marquez les offres « Candidaté » ou « Ignorer » : elles restent grisées lors de vos prochaines visites.</p>
+            </article>
+          </div>
+        </section>
+      </div>
     </main>
 
+    <!-- ================= Onglet Entreprises ================= -->
+    <main id="tab-companies" class="tab" hidden>
+      <section class="hero hero-small">
+        <div class="hero-inner">
+          <h1 class="hero-title">Les entreprises qui recrutent à <span>Sophia</span></h1>
+          <p class="hero-sub">
+            Grands employeurs, startups et ESN de la technopole : leurs offres du moment, leur site carrières
+            et la candidature spontanée, en un clic.
+          </p>
+          <div class="searchbox searchbox-light">
+            <span class="searchbox-icon" data-icon="filter"></span>
+            <input id="company-filter" type="search" placeholder="Filtrer les entreprises…" autocomplete="off" aria-label="Filtrer les entreprises" />
+          </div>
+        </div>
+      </section>
+      <div class="container">
+        <div id="featured-companies"></div>
+      </div>
+    </main>
+
+    <!-- ================= Tiroir « Mes alertes » ================= -->
+    <div id="drawer" class="drawer" hidden>
+      <div class="drawer-backdrop" data-close></div>
+      <aside class="drawer-panel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+        <header class="drawer-head">
+          <h2 id="drawer-title"><span data-icon="bell"></span>Mes alertes</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Fermer"><span data-icon="x"></span></button>
+        </header>
+        <div id="alerts-list" class="alerts-list"></div>
+        <section class="howto">
+          <h3>Comment ça marche ?</h3>
+          <p class="muted small" id="howto-intro"></p>
+          <ul id="channels" class="channels-status"></ul>
+        </section>
+      </aside>
+    </div>
+
     <footer class="footer">
-      <span id="company-count"></span>
-      <span> · Données : France Travail, APEC, HelloWork, WTTJ, entreprises locales</span>
-      <span> · <a href="/status.html">catalogue des sources</a></span>
-      <span> · <span id="site-version">version…</span></span>
+      <div class="footer-inner">
+        <span id="company-count"></span>
+        <span>Données : France Travail, APEC, HelloWork, Welcome to the Jungle et sites carrières des entreprises</span>
+        <span><a href="/status.html">Catalogue &amp; statut</a> · <span id="site-version">version…</span></span>
+      </div>
     </footer>
 
-    <script src="/vendor/xlsx.full.min.js"></script>
+    <script src="/vendor/xlsx.full.min.js" defer></script>
     <script src="/version.js" type="module"></script>
     <script src="/app.js" type="module"></script>
   </body>
