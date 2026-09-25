@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { crawlAllCompanies } from "./sources/companies.js";
 import { CRAWLABLE_COMPANIES, SOPHIA_COMPANIES } from "../data/companies.js";
+import { checkAlerts } from "./alerts.js";
 import {
   setCacheJobs,
   saveCheckpoint,
@@ -87,4 +88,12 @@ export function startWorker() {
   const intervalMs = config.cache.refreshMinutes * 60 * 1000;
   setInterval(() => refreshCompanyCache("planifié"), intervalMs);
   console.log(`[worker] refresh planifié toutes les ${config.cache.refreshMinutes} min.`);
+
+  // Vérification des alertes : plus fréquente que le crawl complet, car elle ne
+  // fait que relancer une recherche légère (France Travail + agrégateurs + cache).
+  const alertsIntervalMs = config.alertsCheckMinutes * 60 * 1000;
+  setInterval(() => {
+    checkAlerts().catch((err) => console.error("[alerts] échec vérification planifiée :", err.message));
+  }, alertsIntervalMs);
+  console.log(`[worker] vérification des alertes toutes les ${config.alertsCheckMinutes} min.`);
 }

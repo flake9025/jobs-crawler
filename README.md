@@ -10,6 +10,13 @@ sur LinkedIn, l'APEC ou France Travail.
 - **Recherche agrégée** : API France Travail + agrégateurs (Welcome to the Jungle, HelloWork, APEC)
   + offres détectées directement sur les sites des entreprises locales.
 - **Annuaire de ~7 300 entreprises** de la technopole, dont ~1 900 sites crawlés en continu.
+- **Onglet « Entreprises »** : sélection éditoriale des employeurs emblématiques de la technopole
+  (grandes entreprises, startups, grandes ESN, ESN montantes), avec boutons « Voir les offres »
+  (catalogue interne, puis site de l'entreprise) et « Candidature spontanée ».
+- **Alertes nouvelles offres** : sauvegardez une recherche pour être notifié(e) par email et/ou
+  notification push navigateur dès qu'une nouvelle offre correspondante apparaît.
+- **Suivi des offres consultées** : marquez une offre comme candidatée ou ignorée (stockage local
+  navigateur, aucun compte requis) ; elle apparaît grisée lors des prochaines visites.
 - **Filtres** : niveau d'expérience (débutant / confirmé / expert), type de contrat
   (CDI, CDD, Alternance, Stage, Freelance, Intérim).
 - **Tris** : pertinence, fraîcheur (offres les plus récentes), entreprise.
@@ -51,6 +58,32 @@ Toutes les options passent par variables d'environnement (voir `.env.example`).
 | `CACHE_REFRESH_MINUTES` | `360` | Intervalle entre deux crawls complets |
 | `CACHE_STALE_MINUTES` | `360` | Âge au-delà duquel un crawl est relancé au démarrage |
 | `CACHE_FILE` | `/app/data/companies-cache.json` | Fichier de persistance du cache |
+| `ALERTS_FILE` | `/app/data/alerts.json` | Fichier de persistance des alertes (recherches sauvegardées) |
+| `ALERTS_CHECK_MINUTES` | `30` | Intervalle entre deux vérifications des alertes |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — | Serveur SMTP pour les alertes email (désactivées si absent) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | — | Clés pour les notifications push (générées par `npm run vapid:generate`) |
+
+## Alertes "nouvelles offres"
+
+Depuis l'onglet **Recherche**, après une recherche, un bandeau propose de créer une alerte :
+un email (optionnel) et/ou une notification push navigateur sont envoyés dès qu'une offre
+correspondante, non encore vue, est détectée. Les alertes sont vérifiées toutes les
+`ALERTS_CHECK_MINUTES` minutes en tâche de fond, sur les mêmes sources que la recherche
+(France Travail, agrégateurs, cache entreprises).
+
+- **Email** : nécessite un SMTP configuré dans `.env` (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`…).
+- **Push** : nécessite des clés VAPID (`npm run vapid:generate`, à copier dans `.env`). Le
+  navigateur demande la permission de notification lors de la création de l'alerte.
+
+Sans SMTP ni VAPID configurés, la création d'alerte reste possible mais n'envoie rien tant que
+l'un des deux n'est pas activé.
+
+## Suivi des offres (candidatées / ignorées)
+
+Chaque offre peut être marquée « Candidaté » ou « Ignorer » directement depuis sa carte ; le
+statut (et le simple fait d'avoir ouvert l'offre) est mémorisé dans le `localStorage` du
+navigateur, sans compte ni serveur. Les offres déjà traitées apparaissent grisées lors des
+prochaines visites, et un bouton « ↺ » permet de réinitialiser le statut.
 
 ## Architecture
 
@@ -60,11 +93,16 @@ src/
     companies-seed.js     liste curatée (sites vérifiés à la main)
     companies.json        annuaire généré (commité, ~7 300 entreprises)
     companies.js          fusion seed + annuaire, dédoublonnage
+    featured-companies.js sélection éditoriale (Top 15, startups, ESN…) pour l'onglet Entreprises
   server/
     index.js              serveur Express et API HTTP
     config.js             configuration par variables d'environnement
+    search.js             recherche agrégée factorisée (utilisée par l'API et les alertes)
     cache.js              cache mémoire + persistance disque, progression du crawl
-    worker.js             job de fond : crawl périodique, publication de la progression
+    worker.js             job de fond : crawl périodique, vérification des alertes
+    alerts.js             alertes "nouvelles offres" (recherches sauvegardées, notifications)
+    mailer.js             envoi des emails d'alerte (nodemailer / SMTP)
+    push.js                notifications push navigateur (web-push / VAPID)
     ranking.js            scoring de pertinence, déduplication, tri
     util.js               normalisation des offres (contrat, expérience, niveau)
     sources/
@@ -73,6 +111,7 @@ src/
       companies.js        crawl des pages carrières des entreprises locales
 public/                   PWA : recherche (index.html) et statut (status.html)
 scripts/fetch-companies.mjs  génération de l'annuaire
+scripts/generate-vapid-keys.mjs  génération des clés de notifications push
 ```
 
 ### Principe du crawl
@@ -98,6 +137,12 @@ de recrutement (par exemple Talentsoft pour PRO BTP et Air France).
 |---|---|
 | `GET /api/search?q=...` | Recherche agrégée, offres classées par pertinence |
 | `GET /api/companies?page=&pageSize=&search=&status=` | Annuaire paginé avec statut de crawl |
+| `GET /api/featured-companies` | Sélection éditoriale (Top 15, startups, ESN majeures/montantes) |
+| `GET /api/company-jobs?name=...` | Offres en cache pour une entreprise donnée |
+| `GET /api/alerts` | Liste des alertes + disponibilité email/push |
+| `POST /api/alerts` | Crée une alerte `{ query, email? }` |
+| `DELETE /api/alerts/:id` | Supprime une alerte |
+| `POST /api/alerts/:id/subscribe` | Abonne un navigateur aux notifications push de l'alerte |
 | `GET /api/status` | Progression du crawl, couverture, statistiques d'offres |
 | `GET /api/cache` | Statut brut du cache |
 | `POST /api/cache/refresh` | Relance un crawl complet (non bloquant) |

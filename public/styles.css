@@ -206,3 +206,55 @@ body {
   .coverage-row { grid-template-columns: 1fr; gap: 4px; }
   .coverage-value { text-align: left; }
 }
+
+/* --- Onglets (Recherche / Entreprises) --- */
+.tabs { display: flex; gap: 8px; max-width: 860px; margin: 10px auto 0; padding: 0 16px; }
+.tab-btn {
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: #fff;
+  padding: 8px 16px; border-radius: 999px 999px 0 0; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.tab-btn.active { background: #f4f6f8; color: var(--bg); }
+.tab-panel[hidden] { display: none; }
+
+/* --- Panneau d'alerte (recherche sauvegardée) --- */
+.alert-panel {
+  background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 16px; font-size: 13px;
+}
+.alert-panel-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alert-panel-row input[type="email"] {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; min-width: 200px;
+}
+.link-btn.strong { background: var(--accent-2); color: #fff; border-radius: 8px; padding: 7px 14px; }
+.link-btn.strong:hover { background: #005f8a; text-decoration: none; }
+
+/* --- Statut d'une offre (vue / candidatée / ignorée) --- */
+.job-card { display: block; }
+.job-link { text-decoration: none; color: inherit; display: block; }
+.job-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.job-actions { display: flex; gap: 6px; margin-left: auto; }
+.job-action-btn {
+  font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  background: #f1f5f9; color: #334155; border: 1px solid var(--border); text-decoration: none; display: inline-block;
+}
+.job-action-btn:hover { background: #e2e8f0; }
+.job-status-badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.job-status-badge.read { background: #eef6fb; color: #0369a1; }
+.job-status-badge.applied { background: #dcfce7; color: #166534; }
+.job-status-badge.ignored { background: #f1f5f9; color: #64748b; }
+.job-card.job-status-applied { border-color: #86efac; }
+.job-card.job-status-ignored, .job-card.job-status-read { opacity: .55; }
+.job-card.job-status-ignored:hover, .job-card.job-status-read:hover { opacity: 1; }
+
+/* --- Onglet Entreprises (Top 15, startups, ESN…) --- */
+.company-category { margin-bottom: 26px; }
+.company-category h2 { margin: 0 0 2px; font-size: 17px; color: var(--bg); }
+.company-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+.company-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; box-shadow: var(--shadow);
+}
+.company-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.company-jobs-hint { font-size: 11px; font-weight: 700; color: #0369a1; background: #eef6fb; padding: 2px 8px; border-radius: 999px; }
+.company-card-jobs { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.company-card-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }

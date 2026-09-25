@@ -2,19 +2,20 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
-import { searchFranceTravail } from "./sources/franceTravail.js";
-import { searchAggregators, searchLinks } from "./sources/aggregators.js";
-import { searchCompanyCache, companySearchLinks } from "./sources/companies.js";
-import { rankJobs } from "./ranking.js";
+import { performSearch } from "./search.js";
 import { normalizeText } from "./util.js";
 import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES } from "../data/companies.js";
+import { FEATURED_CATEGORIES } from "../data/featured-companies.js";
 import { loadCache, getCacheJobs, getCacheStatus, getCompanyStats } from "./cache.js";
 import { startWorker, refreshCompanyCache } from "./worker.js";
+import { loadAlerts, listAlerts, createAlert, deleteAlert, addPushSubscription } from "./alerts.js";
+import { isPushEnabled, getPublicKey } from "./push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 const publicDir = path.join(__dirname, "..", "..", "public");
+app.use(express.json());
 app.use(express.static(publicDir));
 
 app.get("/api/version", (_req, res) => {
@@ -32,43 +33,69 @@ app.get("/api/search", async (req, res) => {
     return res.status(400).json({ error: "Paramètre 'q' (intitulé de poste) requis." });
   }
 
-  const started = Date.now();
+  const result = await performSearch(query);
+  res.json(result);
+});
 
-  // Sources "live" rapides : API France Travail + agrégateurs.
-  const [ft, agg] = await Promise.allSettled([
-    searchFranceTravail(query),
-    searchAggregators(query),
-  ]);
-
-  // Entreprises de Sophia : lecture INSTANTANÉE du cache (alimenté par le worker).
-  const companyMatches = searchCompanyCache(getCacheJobs(), query);
-
-  const raw = [
-    ...(ft.status === "fulfilled" ? ft.value : []),
-    ...(agg.status === "fulfilled" ? agg.value : []),
-    ...companyMatches,
-  ];
-
-  const jobs = rankJobs(raw, query);
-
-  // Panneau "entreprises" : seulement celles qui ont une offre correspondante en cache.
-  const companiesWithMatches = new Set(
-    companyMatches
-      .map((j) => (j.source || "").replace(/^Entreprise:\s*/, ""))
-      .filter(Boolean)
-  );
+// --- API : entreprises vedettes (Top 15, startups, ESN…) pour l'onglet "Entreprises" ---
+app.get("/api/featured-companies", (_req, res) => {
+  const jobs = getCacheJobs();
+  const countFor = (name) => {
+    const n = normalizeText(name);
+    return jobs.filter((j) => normalizeText(j.company) === n).length;
+  };
 
   res.json({
-    query,
-    count: jobs.length,
-    tookMs: Date.now() - started,
-    franceTravailEnabled: config.franceTravail.enabled,
-    scrapersEnabled: config.enableScrapers,
-    cache: getCacheStatus(),
-    jobs,
-    searchLinks: searchLinks(query),
-    companyLinks: companySearchLinks(query, companiesWithMatches),
+    categories: FEATURED_CATEGORIES.map((cat) => ({
+      id: cat.id,
+      label: cat.label,
+      description: cat.description,
+      companies: cat.companies.map((c) => ({ ...c, cachedJobs: countFor(c.name) })),
+    })),
   });
+});
+
+// --- API : offres en cache pour une entreprise donnée (bouton "Voir les offres") ---
+app.get("/api/company-jobs", (req, res) => {
+  const name = normalizeText((req.query.name || "").toString());
+  if (!name) return res.status(400).json({ error: "Paramètre 'name' requis." });
+  const jobs = getCacheJobs().filter((j) => normalizeText(j.company) === name);
+  res.json({ jobs });
+});
+
+// --- API : alertes "nouvelles offres" (recherche sauvegardée + notifications) ---
+app.get("/api/alerts", (_req, res) => {
+  res.json({
+    alerts: listAlerts(),
+    pushEnabled: isPushEnabled(),
+    emailEnabled: config.smtp.enabled,
+    vapidPublicKey: getPublicKey(),
+  });
+});
+
+app.post("/api/alerts", async (req, res) => {
+  const query = (req.body?.query || "").toString().trim();
+  const email = (req.body?.email || "").toString().trim();
+  if (!query) return res.status(400).json({ error: "Le champ 'query' est requis." });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "Adresse email invalide." });
+  }
+  const alert = await createAlert({ query, email });
+  res.json({ id: alert.id });
+});
+
+app.delete("/api/alerts/:id", async (req, res) => {
+  const ok = await deleteAlert(req.params.id);
+  if (!ok) return res.status(404).json({ error: "Alerte introuvable." });
+  res.json({ deleted: true });
+});
+
+app.post("/api/alerts/:id/subscribe", async (req, res) => {
+  const subscription = req.body?.subscription;
+  if (!subscription?.endpoint) return res.status(400).json({ error: "Abonnement push invalide." });
+  const ok = await addPushSubscription(req.params.id, subscription);
+  if (!ok) return res.status(404).json({ error: "Alerte introuvable." });
+  res.json({ subscribed: true });
 });
 
 // --- API : entreprises suivies (catalogue paginé et filtrable) ---
@@ -181,11 +208,14 @@ process.on("uncaughtException", (err) => {
 // --- Démarrage ---
 async function start() {
   await loadCache();
+  await loadAlerts();
   app.listen(config.port, () => {
     console.log(`Sophia Jobs Crawler démarré sur http://localhost:${config.port}`);
     console.log(`  France Travail API : ${config.franceTravail.enabled ? "activée" : "désactivée (pas de clés)"}`);
     console.log(`  Scrapers           : ${config.enableScrapers ? "activés" : "désactivés"}`);
     console.log(`  Entreprises suivies : ${SOPHIA_COMPANIES.length} (dont ${CRAWLABLE_COMPANIES.length} crawlables)`);
+    console.log(`  Alertes email      : ${config.smtp.enabled ? "activées (SMTP configuré)" : "désactivées (SMTP absent)"}`);
+    console.log(`  Alertes push       : ${isPushEnabled() ? "activées (VAPID configuré)" : "désactivées (VAPID absent, npm run vapid:generate)"}`);
     // Lance le worker de fond (cache entreprises).
     startWorker();
   });

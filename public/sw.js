@@ -1,6 +1,6 @@
 // Service worker minimal : cache "app shell" pour usage offline de l'interface.
 // Les résultats de recherche (API) ne sont pas mis en cache car dynamiques.
-const CACHE = "sophia-jobs-v3";
+const CACHE = "sophia-jobs-v4";
 const SHELL = [
   "/",
   "/index.html",
@@ -38,5 +38,36 @@ self.addEventListener("fetch", (e) => {
   // App shell : cache-first.
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request))
+  );
+});
+
+// --- Notifications push (alertes "nouvelles offres") ---
+self.addEventListener("push", (e) => {
+  let data = { title: "Sophia Jobs", body: "Nouvelle(s) offre(s) détectée(s).", url: "/" };
+  try {
+    if (e.data) data = { ...data, ...e.data.json() };
+  } catch {
+    /* charge utile non-JSON : on garde le message par défaut */
+  }
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes(url) && "focus" in client) return client.focus();
+      }
+      return self.clients.openWindow(url);
+    })
   );
 });

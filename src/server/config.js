@@ -26,4 +26,29 @@ export const config = {
     // nombre d'entreprises crawlées en parallèle (l'annuaire compte plusieurs milliers de sites)
     concurrency: parseInt(process.env.CRAWL_CONCURRENCY || "12", 10),
   },
+  // Fichier de persistance des alertes (recherches sauvegardées + abonnements).
+  alertsFile: process.env.ALERTS_FILE || "/app/data/alerts.json",
+  // Intervalle entre deux vérifications des alertes (minutes)
+  alertsCheckMinutes: parseInt(process.env.ALERTS_CHECK_MINUTES || "30", 10),
+  // ---- Email (alertes) ----
+  smtp: {
+    host: process.env.SMTP_HOST || "",
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
+    secure: (process.env.SMTP_SECURE || "false") === "true",
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || "Sophia Jobs <no-reply@sophia-jobs.local>",
+    get enabled() {
+      return Boolean(this.host && this.user && this.pass);
+    },
+  },
+  // ---- Notifications push navigateur (alertes) ----
+  vapid: {
+    publicKey: process.env.VAPID_PUBLIC_KEY || "",
+    privateKey: process.env.VAPID_PRIVATE_KEY || "",
+    contact: process.env.VAPID_CONTACT_EMAIL || "contact@sophia-jobs.local",
+    get enabled() {
+      return Boolean(this.publicKey && this.privateKey);
+    },
+  },
 };

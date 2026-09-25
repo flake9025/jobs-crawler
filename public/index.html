@@ -21,9 +21,14 @@
         </div>
         <a class="header-link" href="/status.html">📊 Catalogue &amp; statut</a>
       </div>
+      <nav class="tabs">
+        <button type="button" class="tab-btn active" data-tab="search">🔎 Recherche</button>
+        <button type="button" class="tab-btn" data-tab="companies">🏢 Entreprises</button>
+      </nav>
     </header>
 
     <main class="container">
+      <section id="tab-search" class="tab-panel">
       <form id="search-form" class="search-bar">
         <input
           id="query"
@@ -44,6 +49,15 @@
       </div>
 
       <div id="status" class="status" hidden></div>
+
+      <div id="alert-panel" class="alert-panel" hidden>
+        <div class="alert-panel-row">
+          <span>🔔 Être alerté des nouvelles offres pour cette recherche :</span>
+          <input id="alert-email" type="email" placeholder="email (optionnel)" />
+          <button type="button" id="alert-create-btn" class="link-btn strong">Créer l'alerte</button>
+        </div>
+        <p id="alert-status" class="small muted" hidden></p>
+      </div>
 
       <div id="filters" class="filters" hidden>
         <label class="filter">
@@ -99,6 +113,15 @@
         <summary>Entreprises de Sophia avec une offre correspondante</summary>
         <div id="company-links" class="chips"></div>
       </details>
+      </section>
+
+      <section id="tab-companies" class="tab-panel" hidden>
+        <p class="muted small">
+          Sélection éditoriale des entreprises emblématiques de la technopole. « Voir les offres »
+          cherche d'abord dans notre catalogue interne, puis renvoie vers le site de l'entreprise.
+        </p>
+        <div id="featured-companies"></div>
+      </section>
     </main>
 
     <footer class="footer">
