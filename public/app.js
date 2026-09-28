@@ -1,4 +1,5 @@
 import { icon, hydrateIcons, escapeHtml, safeUrl, fmt, apiFetch, store, avatar } from "/ui.js";
+import { createApplyTab, sentApplication, formatDay, applyTarget, APPLY_LABELS, SENT_KEY } from "/apply.js";
 
 hydrateIcons();
 
@@ -6,7 +7,7 @@ hydrateIcons();
 // Éléments de la page
 // ---------------------------------------------------------------------------
 const el = (id) => document.getElementById(id);
-const tabs = { search: el("tab-search"), companies: el("tab-companies") };
+const tabs = { search: el("tab-search"), companies: el("tab-companies"), apply: el("tab-apply") };
 const form = el("search-form");
 const input = el("query");
 const searchBtn = el("search-btn");
@@ -379,7 +380,8 @@ function renderCompanyBanner(profile) {
     return;
   }
   const career = profile.careerUrl || profile.site;
-  const apply = profile.applyUrl || career;
+  // Pas de doublon du bouton « Site carrières » : seulement un vrai lien de candidature.
+  const apply = profile.applyUrl ? applyTarget(profile) : null;
   const note =
     !profile.loading && !profile.crawled
       ? `<p class="banner-note">${icon("info")}<span>Le site carrières de ${escapeHtml(profile.name)} ne peut pas être analysé automatiquement (application web ou protection anti-robot) : voici ses offres relayées par les job boards. Pensez à consulter aussi son site.</span></p>`
@@ -398,7 +400,7 @@ function renderCompanyBanner(profile) {
     </div>
     <div class="banner-actions">
       ${career ? `<a class="btn btn-ghost" href="${safeUrl(career)}" target="_blank" rel="noopener">${icon("external-link")}Site carrières</a>` : ""}
-      ${apply ? `<a class="btn btn-accent" href="${safeUrl(apply)}" target="_blank" rel="noopener">${icon("send")}Candidature spontanée</a>` : ""}
+      ${apply ? `<a class="btn btn-accent" href="${safeUrl(apply.url)}" target="_blank" rel="noopener">${icon("send")}${APPLY_LABELS[apply.kind]}</a>` : ""}
     </div>
     ${note}`;
   companyBanner.hidden = false;
@@ -992,7 +994,8 @@ function companyLine(c) {
 function companyCard(c) {
   const line = companyLine(c);
   const career = c.careerUrl || c.site;
-  const apply = c.applyUrl || career;
+  const apply = applyTarget(c);
+  const sent = sentApplication(c.name);
   return `
     <article class="company-card">
       <div class="company-head">
@@ -1008,9 +1011,10 @@ function companyCard(c) {
         }
       </div>
       <p class="company-line is-${line.cls}">${icon(line.icon)}${escapeHtml(line.text)}</p>
+      ${sent ? `<p class="company-line is-sent">${icon("check-circle")}Candidature envoyée le ${escapeHtml(formatDay(sent.at))}</p>` : ""}
       <div class="company-actions">
         <button type="button" class="btn btn-primary btn-sm" data-company="${escapeHtml(c.name)}">Voir les offres${icon("arrow-right")}</button>
-        ${apply ? `<a class="btn btn-soft btn-sm" href="${safeUrl(apply)}" target="_blank" rel="noopener">${icon("send")}Candidature spontanée</a>` : ""}
+        ${apply ? `<a class="btn btn-soft btn-sm" href="${safeUrl(apply.url)}" target="_blank" rel="noopener">${icon("send")}${APPLY_LABELS[apply.kind]}</a>` : ""}
       </div>
     </article>`;
 }
@@ -1056,7 +1060,7 @@ function fetchFeatured() {
   return featuredRequest;
 }
 
-let featuredRenderedAt = 0;
+let featuredRenderedKey = "";
 async function loadFeatured() {
   if (!state.featured) {
     featuredEl.innerHTML = `<div class="company-grid">${Array.from({ length: 6 }, () => `<div class="company-card skeleton"><span class="sk sk-title"></span><span class="sk sk-line"></span><span class="sk sk-line sk-short"></span></div>`).join("")}</div>`;
@@ -1069,11 +1073,17 @@ async function loadFeatured() {
     }
     return;
   }
-  if (featuredRenderedAt !== state.featuredAt) {
-    featuredRenderedAt = state.featuredAt;
+  // Nouveau rendu si la liste a été rechargée ou si une candidature a été notée entre-temps.
+  const key = `${state.featuredAt}|${JSON.stringify(store.get(SENT_KEY, {}))}`;
+  if (featuredRenderedKey !== key) {
+    featuredRenderedKey = key;
     renderFeatured();
   }
 }
+
+window.addEventListener("storage", (e) => {
+  if (e.key === SENT_KEY && currentTab === "companies" && state.featured) loadFeatured();
+});
 
 featuredEl.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-company]");
@@ -1151,12 +1161,18 @@ async function refreshStats() {
 })();
 
 // ---------------------------------------------------------------------------
-// Navigation : ?q=, ?company=, ?alert=, #entreprises (historique du navigateur)
+// Navigation : ?q=, ?company=, ?alert=, #entreprises, #candidatures (historique du navigateur)
 // ---------------------------------------------------------------------------
+const HASH_TABS = { "#entreprises": "companies", "#candidatures": "apply" };
+const TAB_TITLES = {
+  companies: "Entreprises qui recrutent — Sophia Jobs",
+  apply: "Candidatures spontanées — Sophia Jobs",
+};
+
 function readRoute() {
   const p = new URLSearchParams(location.search);
   return {
-    tab: location.hash === "#entreprises" ? "companies" : "search",
+    tab: HASH_TABS[location.hash] || "search",
     q: (p.get("q") || "").trim(),
     company: (p.get("company") || "").trim(),
     alert: (p.get("alert") || "").trim(),
@@ -1172,13 +1188,16 @@ function showTab(name) {
     a.classList.toggle("active", a.dataset.nav === name);
     a.setAttribute("aria-current", a.dataset.nav === name ? "page" : "false");
   }
-  document.title = name === "companies" ? "Entreprises qui recrutent — Sophia Jobs" : "Sophia Jobs — Emploi à Sophia Antipolis";
+  document.title = TAB_TITLES[name] || "Sophia Jobs — Emploi à Sophia Antipolis";
 }
+
+const applyTab = createApplyTab({ fetchFeatured: () => fetchFeatured() });
 
 function route() {
   const r = readRoute();
   showTab(r.tab);
   if (r.tab === "companies") return loadFeatured();
+  if (r.tab === "apply") return applyTab.show();
 
   state.searchUrl = location.pathname + location.search;
   if (r.alert) return openAlert(r.alert);
@@ -1214,6 +1233,7 @@ for (const link of document.querySelectorAll("[data-nav]")) {
     e.preventDefault();
     const target = link.dataset.nav;
     if (target === "companies") go("/#entreprises");
+    else if (target === "apply") go("/#candidatures");
     else if (target === "home") go("/");
     else go(state.searchUrl || "/");
   });

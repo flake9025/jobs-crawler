@@ -13,9 +13,15 @@ sur LinkedIn, l'APEC ou France Travail.
 - **Onglet « Entreprises »** : sélection éditoriale des employeurs emblématiques de la technopole
   (grands employeurs, startups, grandes ESN, ESN montantes). Chaque fiche affiche le nombre
   d'offres détectées sur le site carrières, un bouton **« Voir les offres »** (recherche en
-  mode entreprise : `/?company=Amadeus`, filtrable par mot-clé) et **« Candidature spontanée »**.
+  mode entreprise : `/?company=Amadeus`, filtrable par mot-clé) et un lien de candidature :
+  formulaire de **candidature spontanée**, à défaut **vivier de talents** (Talent Community),
+  sinon le site carrières.
   Ces entreprises sont crawlées en priorité et intégrées au moteur de recherche : leurs offres
   remontent dans les recherches classiques, rattachées à la fiche via leurs alias.
+- **Onglet « Candidatures »** (`/#candidatures`) : candidatures spontanées en série auprès des
+  entreprises vedettes. Profil et CV saisis une fois, entreprises cochées, puis, pour chacune,
+  sa page de candidature officielle et chaque champ prêt à copier ; les envois sont suivis
+  (« Candidature envoyée le … » sur la fiche). Tout reste dans le navigateur.
 - **Accueil** : les entreprises vedettes qui publient le plus d'offres, en un clic.
 - **Alertes nouvelles offres** : suivez une recherche ou une entreprise ; les nouveautés sont
   signalées par une pastille sur la cloche, par notification navigateur et/ou par email.
@@ -124,6 +130,27 @@ Une offre ouverte est marquée « Vue » ; chaque offre peut aussi être marqué
 grisées lors des prochaines visites, l'interrupteur « Masquer les offres ignorées » les retire
 de la liste, et « Rétablir » efface le statut. Les simples « vues » sont oubliées après 6 mois.
 
+## Candidatures spontanées en série
+
+L'onglet **Candidatures** prépare des candidatures spontanées auprès des entreprises vedettes :
+
+1. **Profil** : prénom, nom, email, téléphone, poste recherché, présentation courte, lien
+   LinkedIn ou portfolio et CV (PDF, Word, ODT ou RTF, 10 Mo maximum).
+2. **Entreprises** : cases à cocher par catégorie (« Tout cocher » ignore les entreprises déjà
+   sollicitées), avec le type de candidature possible pour chacune.
+3. **Série** : une entreprise à la fois, avec le lien vers sa page officielle, chaque champ du
+   profil à copier, le CV à joindre et un message de motivation modifiable. « C'est envoyé »
+   note la candidature et passe à la suivante ; « Passer » la garde cochée pour plus tard.
+
+Aucun envoi automatique : ces employeurs n'ouvrent pas leur outil de recrutement (Workday,
+Talentsoft, SuccessFactors, Avature…) à des dépôts extérieurs, leurs API exigeant une clé
+délivrée à l'employeur. La validation finale se fait donc sur leur site, souvent avec un compte
+candidat.
+
+**Confidentialité** : profil, sélection et suivi sont stockés dans le `localStorage`, le CV
+dans l'IndexedDB du navigateur ; rien n'est envoyé au serveur de Sophia Jobs.
+« Effacer mes données » supprime le tout de l'appareil.
+
 ## Architecture
 
 ```
@@ -151,8 +178,8 @@ src/
       companies.js        crawl des pages carrières des entreprises locales
       ats.js              connecteurs API des ATS (Workday, Phenom, Greenhouse, Lever, Recruitee, Yello…)
                           et des sites d'offres propres à un employeur (Abylsen, Randstad Digital)
-public/                   PWA : recherche + entreprises (index.html, app.js), statut (status.html),
-                          composants partagés (ui.js), service worker (sw.js)
+public/                   PWA : recherche + entreprises (index.html, app.js), candidatures (apply.js),
+                          statut (status.html), composants partagés (ui.js), service worker (sw.js)
 scripts/fetch-companies.mjs  génération de l'annuaire
 scripts/generate-vapid-keys.mjs  génération des clés de notifications push
 ```
@@ -207,6 +234,7 @@ le crawl :
 | `careerSite` | Page (ou ATS) crawlée à la place du site corporate ; une liste d'URLs quand l'employeur publie sur plusieurs sites (ex. EY : Yello pour Nice et Monaco + SuccessFactors) |
 | `careerUrl` | Page carrières destinée à l'humain (bouton « Site carrières ») |
 | `applyUrl` | Page de candidature spontanée (à défaut : `careerUrl`, puis `site`) |
+| `applyKind: "talent"` | `applyUrl` est un vivier de talents (Talent Community) et non un formulaire de candidature spontanée |
 | `aliases` | Autres raisons sociales : rattachent doublons de l'annuaire et offres des job boards |
 | `localOnly` | Ne garde que les offres situées dans les Alpes-Maritimes ou à Monaco (listes nationales) |
 | `offerUrlFilter` | Ne garde que les offres dont l'URL contient ce segment (site partagé par un groupe, ex. `/emploi/06/balitrand/` sur le site Ciffréo Bona) |
@@ -222,7 +250,7 @@ en premier, instantané toutes les 200 entreprises).
 | Route | Description |
 |---|---|
 | `GET /api/search?q=...&company=...` | Recherche agrégée (`q` et/ou `company`), offres classées par pertinence ; `company` restreint à un employeur et renvoie sa fiche |
-| `GET /api/featured-companies` | Sélection éditoriale par catégorie, avec nombre d'offres et statut de crawl |
+| `GET /api/featured-companies` | Sélection éditoriale par catégorie, avec nombre d'offres, statut de crawl et lien de candidature (`applyUrl`, `applyKind`) |
 | `GET /api/companies?page=&pageSize=&search=&status=` | Annuaire paginé avec statut de crawl |
 | `GET /api/config` | Version et canaux d'alerte disponibles (email, push, clé VAPID publique) |
 | `POST /api/alerts` | Crée une alerte `{ query?, company?, email? }` |

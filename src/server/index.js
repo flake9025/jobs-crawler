@@ -82,6 +82,7 @@ app.get("/api/featured-companies", (_req, res) => {
           site: c.site || null,
           careerUrl: c.careerUrl || careerSitesOf(c)[0] || c.site || null,
           applyUrl: c.applyUrl || null,
+          applyKind: c.applyUrl ? c.applyKind || "spontaneous" : null,
           city: c.city || null,
           crawled: isCrawled(c),
           status: stat?.status || statusFallback(c),

@@ -23,6 +23,7 @@ export function companyProfile(name) {
     site: entry?.site || null,
     careerUrl: entry?.careerUrl || stat?.careerUrls?.[0] || careerSitesOf(entry)[0] || null,
     applyUrl: entry?.applyUrl || null,
+    applyKind: entry?.applyUrl ? entry.applyKind || "spontaneous" : null,
     featured: entry?.featured || null,
     crawled: Boolean(entry && (entry.site || entry.careerSite) && entry.crawl !== false),
     status: stat?.status || null,

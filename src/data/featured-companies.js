@@ -13,7 +13,10 @@
 //                   SuccessFactors et Yello sont interrogés via leur API publique, de
 //                   même que les sites d'offres d'Abylsen et de Randstad Digital. Une
 //                   liste d'URLs cumule plusieurs sites (ex. EY : campus + expérimentés).
-// - `applyUrl`    : candidature spontanée (à défaut : `careerUrl`, puis `site`).
+// - `applyUrl`    : candidature spontanée officielle (à défaut : `careerUrl`, puis `site`).
+//                   Liens vérifiés à la main : sans formulaire spontané, pas d'applyUrl.
+// - `applyKind`   : "talent" si `applyUrl` est un vivier de talents (Talent Community)
+//                   plutôt qu'un formulaire de candidature spontanée.
 // - `aliases`     : autres raisons sociales (annuaires, France Travail…) : elles
 //                   rattachent les doublons de l'annuaire et les offres à la fiche.
 //                   Jamais d'alias trop générique (« Toyota » = une concession).
@@ -45,6 +48,8 @@ export const FEATURED_CATEGORIES = [
           "https://orange.jobs/fr/fr/search-results?p=ChIJvUmYZ1gpzBIRlSJcMrwF10o&location=Valbonne%2C%20France",
         careerSite:
           "https://orange.jobs/fr/fr/search-results?p=ChIJvUmYZ1gpzBIRlSJcMrwF10o&location=Valbonne%2C%20France",
+        applyUrl: "https://orange.jobs/fr/fr/rejoindre-talent-community",
+        applyKind: "talent",
         city: "Sophia Antipolis",
         aliases: ["Orange Business Services", "Orange Business", "Orange Design & Build"],
       },
@@ -54,6 +59,7 @@ export const FEATURED_CATEGORIES = [
         site: "https://www.docaposte.com",
         careerUrl: "https://docaposte-recrute.profils.org/accueil.aspx",
         careerSite: "https://docaposte-recrute.profils.org/offre-de-emploi/liste-offres.aspx",
+        applyUrl: "https://docaposte-recrute.profils.org/mon-compte/candidature/spontanee.aspx",
         localOnly: true,
       },
       {
@@ -64,6 +70,9 @@ export const FEATURED_CATEGORIES = [
           "https://recrute-probtp.talent-soft.com/offre-de-emploi/liste-toutes-offres.aspx?changefacet=1&facet_JobRegion=217",
         careerSite:
           "https://recrute-probtp.talent-soft.com/offre-de-emploi/liste-toutes-offres.aspx?changefacet=1&facet_JobRegion=217",
+        // Espace candidat Talentsoft : connexion ou création de compte, puis dépôt du CV.
+        applyUrl:
+          "https://recrute-probtp.talent-soft.com/mon-compte/mon-fichier-cv.aspx?ApplicationType=UnsolicitedApplication",
         city: "Sophia Antipolis",
         aliases: ["PROBTP"],
       },
@@ -74,6 +83,8 @@ export const FEATURED_CATEGORIES = [
         careerUrl:
           "https://careers.thalesgroup.com/global/en/search-results?keywords=&from=0&s=1&rk=l-sophia-antipolis",
         careerSite: "https://thales.wd3.myworkdayjobs.com/Careers",
+        applyUrl: "https://careers.thalesgroup.com/fr/fr/jointalentcommunity",
+        applyKind: "talent",
         aliases: ["Thales Dms France", "Thales Services", "Thales Alenia Space", "Thales SIX GTS France"],
       },
       {
@@ -81,8 +92,8 @@ export const FEATURED_CATEGORIES = [
         tagline: "Éditeur de logiciels — laboratoire R&D de Mougins",
         site: "https://www.sap.com/france",
         careerUrl: "https://jobs.sap.com/go/SAP-Jobs-in-Mougins/914601/",
-        applyUrl: "https://jobs.sap.com/talentcommunity/subscribe/",
-        // Protégé par Cloudflare (403) : consultation sur le site uniquement.
+        // Protégé par Cloudflare (403) : consultation sur le site uniquement. Leur
+        // Talent Community (/talentcommunity/subscribe/) n'existe plus (404).
         crawl: false,
         city: "Mougins",
         aliases: ["SAP", "SAP France", "Sap Developpement"],
@@ -101,6 +112,9 @@ export const FEATURED_CATEGORIES = [
         site: "https://www.nxp.com",
         careerUrl: "https://nxp.wd3.myworkdayjobs.com/careers",
         careerSite: "https://nxp.wd3.myworkdayjobs.com/careers",
+        // Offre permanente « Candidature spontanée » de NXP France (à revérifier si elle expire).
+        applyUrl:
+          "https://nxp.wd3.myworkdayjobs.com/careers/job/Toulouse/General-Job-Application-Candidature-Spontane_R-10014465",
         aliases: ["NXP"],
       },
       {
@@ -108,6 +122,8 @@ export const FEATURED_CATEGORIES = [
         tagline: "Centre de design européen de Toyota",
         site: "https://ed2.toyota-europe.com",
         careerUrl: "https://ed2.toyota-europe.com/tags/jobs.html",
+        applyUrl: "https://join.toyota-europe.com/connect/talentcommunity/form",
+        applyKind: "talent",
         // Page carrières générée en JavaScript.
         crawl: false,
         aliases: ["Toyota Europe Design Development", "ED2"],
@@ -117,6 +133,8 @@ export const FEATURED_CATEGORIES = [
         tagline: "Services informatiques, cloud et IA",
         site: "https://www.ibm.com/fr-fr",
         careerUrl: "https://www.ibm.com/careers/search?field_keyword_18%5B0%5D=France",
+        applyUrl: "https://www.ibm.com/careers/connect",
+        applyKind: "talent",
         // Moteur de recherche JavaScript.
         crawl: false,
         aliases: ["Cie Ibm France", "IBM France", "Compagnie IBM France"],
@@ -165,6 +183,8 @@ export const FEATURED_CATEGORIES = [
           "https://careers.synopsys.com/location/sophia-antipolis-provence-alpes-cote-d-azur-region-france-jobs/44408/3017382-2985244-6640252/4",
         careerSite:
           "https://careers.synopsys.com/location/sophia-antipolis-provence-alpes-cote-d-azur-region-france-jobs/44408/3017382-2985244-6640252/4",
+        applyUrl: "https://synopsys.avature.net/talentcommunity",
+        applyKind: "talent",
       },
     ],
   },
@@ -268,6 +288,7 @@ export const FEATURED_CATEGORIES = [
         site: "https://www.randstaddigital.fr",
         careerUrl: "https://www.randstaddigital.fr/fr/carrieres/toutes-nos-offres/re-provencealpescotedazur/",
         careerSite: "https://www.randstaddigital.fr/fr/carrieres/toutes-nos-offres/re-provencealpescotedazur/",
+        applyUrl: "https://www.randstaddigital.fr/fr/carrieres/candidature-spontanee/",
         localOnly: true,
         // Jamais « Randstad » seul : ce sont les agences d'intérim.
         aliases: ["Ausy", "Ausy Technology"],
@@ -278,6 +299,7 @@ export const FEATURED_CATEGORIES = [
         site: "https://www.abylsen.com",
         careerUrl: "https://jobs.abylsen.com/fr/offers?city=Valbonne",
         careerSite: "https://jobs.abylsen.com/fr/offers?city=Valbonne",
+        applyUrl: "https://jobs.abylsen.com/apply",
         aliases: ["Abylsen Sud"],
       },
       {
@@ -305,6 +327,8 @@ export const FEATURED_CATEGORIES = [
         careerUrl: "https://akka-cand.talent-soft.com/accueil.aspx?LCID=1036",
         careerSite:
           "https://akka-cand.talent-soft.com/offre-de-emploi/liste-offres.aspx?changefacet=1&facet_JobRegion=217",
+        // Espace candidat Talentsoft : connexion ou création de compte, puis dépôt du CV.
+        applyUrl: "https://akka-cand.talent-soft.com/mon-compte/mon-fichier-cv.aspx",
         localOnly: true,
         aliases: ["Akka Technologies", "Akka I&S", "Akka Ingenierie Produit", "Akka Services"],
       },
@@ -346,6 +370,7 @@ export const FEATURED_CATEGORIES = [
         tagline: "Conseil et services numériques",
         site: "https://www.inovelya.com",
         careerUrl: "https://www.inovelya.com/carrieres",
+        applyUrl: "https://www.inovelya.com/carrieres#candidature-form",
         // Application JavaScript.
         crawl: false,
       },

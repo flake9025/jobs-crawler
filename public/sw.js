@@ -3,13 +3,14 @@
 // Stratégie « réseau d'abord » pour l'interface : une nouvelle version déployée est
 // visible dès le chargement suivant, le cache ne sert qu'en cas de coupure réseau.
 // Les appels API ne sont jamais mis en cache (résultats dynamiques).
-const CACHE = "sophia-jobs-v5";
+const CACHE = "sophia-jobs-v6";
 const SHELL = [
   "/",
   "/index.html",
   "/status.html",
   "/styles.css",
   "/app.js",
+  "/apply.js",
   "/ui.js",
   "/status.js",
   "/version.js",

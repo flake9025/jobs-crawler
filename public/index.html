@@ -22,6 +22,7 @@
         <nav class="segmented" aria-label="Sections">
           <a href="/" data-nav="search" class="active"><span data-icon="search"></span>Offres</a>
           <a href="/#entreprises" data-nav="companies"><span data-icon="briefcase"></span>Entreprises</a>
+          <a href="/#candidatures" data-nav="apply"><span data-icon="send"></span>Candidatures</a>
         </nav>
         <div class="topbar-actions">
           <button type="button" id="bell-btn" class="icon-btn" aria-label="Mes alertes" title="Mes alertes">
@@ -223,7 +224,8 @@
           <h1 class="hero-title">Les entreprises qui recrutent à <span>Sophia</span></h1>
           <p class="hero-sub">
             Grands employeurs, startups et ESN de la technopole : leurs offres du moment, leur site carrières
-            et la candidature spontanée, en un clic.
+            et la candidature spontanée, en un clic — ou en série depuis l'onglet
+            <a href="/#candidatures" data-nav="apply" class="hero-link">Candidatures</a>.
           </p>
           <div class="searchbox searchbox-light">
             <span class="searchbox-icon" data-icon="filter"></span>
@@ -233,6 +235,101 @@
       </section>
       <div class="container">
         <div id="featured-companies"></div>
+      </div>
+    </main>
+
+    <!-- ================= Onglet Candidatures ================= -->
+    <main id="tab-apply" class="tab" hidden>
+      <section class="hero hero-small">
+        <div class="hero-inner">
+          <h1 class="hero-title">Vos candidatures spontanées, <span>en série</span></h1>
+          <p class="hero-sub">
+            Remplissez votre profil une fois et cochez les entreprises qui vous intéressent : pour chacune,
+            Sophia Jobs ouvre sa page de candidature officielle et prépare chaque champ à copier.
+          </p>
+        </div>
+      </section>
+      <div class="container wide">
+        <div class="notice">
+          <span data-icon="info"></span>
+          <span>
+            <strong>Pourquoi pas d'envoi automatique ?</strong>
+            Aucune de ces entreprises n'ouvre son outil de recrutement (Workday, Talentsoft, SuccessFactors…)
+            à des envois extérieurs : la validation se fait sur leur site, en quelques copier-coller.
+          </span>
+        </div>
+
+        <div id="apply-setup" class="apply-layout">
+          <form id="apply-profile" class="card apply-card" autocomplete="on" novalidate>
+            <header class="apply-card-head">
+              <span class="step-num">1</span>
+              <div>
+                <h2>Mon profil</h2>
+                <p class="muted small"><span data-icon="lock"></span>Enregistré sur cet appareil uniquement : rien n'est envoyé à Sophia Jobs.</p>
+              </div>
+            </header>
+            <div class="form-grid">
+              <label class="field">
+                <span>Prénom</span>
+                <input name="firstName" autocomplete="given-name" maxlength="80" />
+              </label>
+              <label class="field">
+                <span>Nom</span>
+                <input name="lastName" autocomplete="family-name" maxlength="80" />
+              </label>
+              <label class="field">
+                <span>Email</span>
+                <input name="email" type="email" autocomplete="email" maxlength="120" />
+              </label>
+              <label class="field">
+                <span>Téléphone</span>
+                <input name="phone" type="tel" autocomplete="tel" maxlength="30" />
+              </label>
+              <label class="field field-full">
+                <span>Poste recherché</span>
+                <input name="title" maxlength="120" placeholder="ex : Développeur full-stack Java / Angular" />
+              </label>
+              <label class="field field-full">
+                <span>Présentation courte</span>
+                <textarea
+                  name="pitch"
+                  rows="5"
+                  maxlength="1000"
+                  placeholder="Votre parcours, vos compétences clés et ce que vous recherchez, en quelques phrases."
+                ></textarea>
+                <small class="field-hint"><span id="pitch-count">0</span> / 1000</small>
+              </label>
+              <label class="field field-full">
+                <span>LinkedIn ou portfolio <em>(facultatif)</em></span>
+                <input name="link" type="url" inputmode="url" maxlength="300" placeholder="https://www.linkedin.com/in/…" />
+              </label>
+            </div>
+            <div id="cv-box" class="cv-box"></div>
+            <footer class="apply-card-foot">
+              <p id="profile-feedback" class="small feedback" role="status" hidden></p>
+              <button type="button" id="profile-clear" class="btn btn-link btn-danger btn-sm"><span data-icon="trash"></span>Effacer mes données</button>
+            </footer>
+          </form>
+
+          <section class="card apply-card" aria-labelledby="apply-companies-title">
+            <header class="apply-card-head">
+              <span class="step-num">2</span>
+              <div>
+                <h2 id="apply-companies-title">Entreprises</h2>
+                <p class="muted small">Cochez celles qui vous intéressent, puis lancez la série.</p>
+              </div>
+            </header>
+            <input id="apply-filter" class="apply-filter" type="search" placeholder="Filtrer les entreprises…" autocomplete="off" aria-label="Filtrer les entreprises" />
+            <div id="apply-companies" class="apply-companies"></div>
+            <footer class="apply-start">
+              <p id="apply-selection" class="small" role="status"></p>
+              <button type="button" id="apply-start" class="btn btn-primary" disabled>Cochez au moins une entreprise</button>
+              <p id="apply-start-hint" class="small muted"></p>
+            </footer>
+          </section>
+        </div>
+
+        <section id="apply-runner" class="card apply-runner" hidden aria-label="Candidature en cours"></section>
       </div>
     </main>
 
