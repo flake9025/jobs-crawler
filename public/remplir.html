@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1d4ed8" />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="/icons/logo.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Remplir avec Sophia Jobs</title>
+  </head>
+  <body class="fill-page">
+    <header class="fill-head">
+      <img src="/icons/logo.svg" alt="" width="28" height="28" />
+      <span class="brand-name">Sophia<strong>Jobs</strong></span>
+      <span class="fill-host" id="fill-host"></span>
+    </header>
+    <main id="fill" class="fill" aria-live="polite">
+      <div class="fill-state"><span class="fill-spinner" aria-hidden="true"></span><p>Connexion au formulaire…</p></div>
+    </main>
+    <noscript><p class="fill-state">Activez JavaScript pour utiliser le remplissage automatique.</p></noscript>
+    <script type="module" src="/remplir.js"></script>
+  </body>
+</html>

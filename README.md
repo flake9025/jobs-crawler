@@ -20,8 +20,9 @@ sur LinkedIn, l'APEC ou France Travail.
   remontent dans les recherches classiques, rattachées à la fiche via leurs alias.
 - **Onglet « Candidatures »** (`/#candidatures`) : candidatures spontanées en série auprès des
   entreprises vedettes. Profil et CV saisis une fois, entreprises cochées, puis, pour chacune,
-  sa page de candidature officielle et chaque champ prêt à copier ; les envois sont suivis
-  (« Candidature envoyée le … » sur la fiche). Tout reste dans le navigateur.
+  sa page de candidature officielle, que le favori **« Remplir avec Sophia Jobs »** remplit en un
+  clic (identité, coordonnées, message, CV), ou chaque champ prêt à copier ; les envois sont
+  suivis (« Candidature envoyée le … » sur la fiche). Tout reste dans le navigateur.
 - **Accueil** : les entreprises vedettes qui publient le plus d'offres, en un clic.
 - **Alertes nouvelles offres** : suivez une recherche ou une entreprise ; les nouveautés sont
   signalées par une pastille sur la cloche, par notification navigateur et/ou par email.
@@ -147,6 +148,35 @@ Talentsoft, SuccessFactors, Avature…) à des dépôts extérieurs, leurs API e
 délivrée à l'employeur. La validation finale se fait donc sur leur site, souvent avec un compte
 candidat.
 
+### Remplissage automatique (favori « Remplir avec Sophia Jobs »)
+
+Le bouton **Remplir avec Sophia Jobs** de l'onglet se glisse dans la barre de favoris
+(Ctrl+Maj+B pour l'afficher). Sur le formulaire d'une entreprise, un clic sur le favori ouvre
+une petite fenêtre Sophia Jobs qui :
+
+- liste les champs reconnus sur la page (prénom, nom ou nom complet, email et confirmation,
+  téléphone, poste recherché, objet, LinkedIn ou site, message, CV) ;
+- propose l'entreprise (reconnue d'après l'adresse de la page ou la série en cours) et le
+  message de motivation correspondant, modifiable ;
+- au clic sur « Remplir », remplit les champs **vides** reconnus, joint le CV et affiche un
+  compte rendu (champs remplis, champs obligatoires restant à compléter).
+
+Le formulaire n'est **jamais envoyé** : listes, cases à cocher et validation restent à faire.
+Les champs déjà remplis, les champs pièges et ceux d'autres personnes (parrain, référent…)
+sont laissés tels quels ; le téléphone et le message s'adaptent au format et à la longueur
+imposés par le site. Le remplissage fonctionne avec les frameworks courants (React, Angular,
+Vue), les Shadow DOM ouverts et les cadres de même origine. Il est testé sur les formulaires
+réels des entreprises vedettes (Talentsoft, Phenom, Avature, Salesforce, formulaires maison).
+
+Limites : ordinateur uniquement (Chrome, Edge, Firefox), pas de barre de favoris sur mobile ;
+formulaires intégrés dans un cadre d'un autre domaine (à ouvrir dans un onglet à part) ;
+sites qui isolent leurs fenêtres (`Cross-Origin-Opener-Policy`), signalés dans la fenêtre.
+
+Sécurité : le favori contient une clé propre au navigateur ; la fenêtre ne répond qu'à la page
+qui l'a ouverte, via un canal privé (`MessageChannel`), et n'envoie le profil qu'au clic sur
+« Remplir ». Le favori installé depuis un autre navigateur est signalé (« Utiliser ce favori
+ici » pour l'adopter).
+
 **Confidentialité** : profil, sélection et suivi sont stockés dans le `localStorage`, le CV
 dans l'IndexedDB du navigateur ; rien n'est envoyé au serveur de Sophia Jobs.
 « Effacer mes données » supprime le tout de l'appareil.
@@ -179,6 +209,7 @@ src/
       ats.js              connecteurs API des ATS (Workday, Phenom, Greenhouse, Lever, Recruitee, Yello…)
                           et des sites d'offres propres à un employeur (Abylsen, Randstad Digital)
 public/                   PWA : recherche + entreprises (index.html, app.js), candidatures (apply.js),
+                          favori de remplissage (prefill.js) et sa fenêtre (remplir.html, remplir.js),
                           statut (status.html), composants partagés (ui.js), service worker (sw.js)
 scripts/fetch-companies.mjs  génération de l'annuaire
 scripts/generate-vapid-keys.mjs  génération des clés de notifications push

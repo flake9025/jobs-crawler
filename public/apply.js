@@ -7,12 +7,17 @@
 // à cocher, puis, pour chacune, sa page de candidature et chaque champ prêt à copier.
 //
 // Tout reste sur l'appareil (localStorage, IndexedDB pour le CV) : rien n'est envoyé
-// au serveur de Sophia Jobs.
+// au serveur de Sophia Jobs. Le favori « Remplir avec Sophia Jobs » (prefill.js) remplit
+// ensuite leur formulaire avec ces mêmes données.
 import { icon, escapeHtml, safeUrl, store, avatar } from "/ui.js";
+import { bookmarkletHref, fillKey, FILL_USED_KEY } from "/prefill.js";
 
-const PROFILE_KEY = "sophia-jobs:apply-profile";
+export const PROFILE_KEY = "sophia-jobs:apply-profile";
 const SELECTION_KEY = "sophia-jobs:apply-selection";
 export const SENT_KEY = "sophia-jobs:applications";
+// Entreprise affichée dans la série en cours (et message éventuellement retouché) : la
+// fenêtre du favori la propose quand l'adresse du formulaire ne suffit pas à la reconnaître.
+export const CURRENT_KEY = "sophia-jobs:apply-current";
 
 const PROFILE_FIELDS = ["firstName", "lastName", "email", "phone", "title", "pitch", "link"];
 const CV_MAX_BYTES = 10 * 1024 * 1024;
@@ -37,10 +42,10 @@ export function formatDay(iso) {
   return d.toLocaleDateString("fr-FR", options);
 }
 
-const formatSize = (n) =>
+export const formatSize = (n) =>
   n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} Mo` : `${Math.max(1, Math.round(n / 1024))} Ko`;
 
-function hostOf(url) {
+export function hostOf(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
@@ -89,10 +94,15 @@ function setSent(name, sent) {
   store.set(SENT_KEY, all);
 }
 
+export function loadProfile() {
+  const saved = store.get(PROFILE_KEY, {});
+  return Object.fromEntries(PROFILE_FIELDS.map((f) => [f, typeof saved?.[f] === "string" ? saved[f] : ""]));
+}
+
 // ---------------------------------------------------------------------------
 // CV : conservé dans IndexedDB (le localStorage ne stocke que du texte, 5 Mo max)
 // ---------------------------------------------------------------------------
-const cvStore = (() => {
+export const cvStore = (() => {
   let db = null;
   const open = () =>
     (db ||= new Promise((resolve, reject) => {
@@ -123,16 +133,17 @@ const cvStore = (() => {
 // ---------------------------------------------------------------------------
 // Textes prêts à coller
 // ---------------------------------------------------------------------------
-const fullName = (p) => [p.firstName, p.lastName].map((s) => s.trim()).filter(Boolean).join(" ");
+export const fullName = (p) => [p.firstName, p.lastName].map((s) => s.trim()).filter(Boolean).join(" ");
 
-const subjectFor = (p) => (p.title.trim() ? `Candidature spontanée : ${p.title.trim()}` : "Candidature spontanée");
+export const subjectFor = (p) => (p.title.trim() ? `Candidature spontanée : ${p.title.trim()}` : "Candidature spontanée");
 
-function messageFor(p, company, hasCv) {
+// `company` peut être vide (entreprise non reconnue par le favori) : message sans « chez … ».
+export function messageFor(p, company, hasCv) {
   const title = p.title.trim();
   const lines = [
     "Madame, Monsieur,",
     "",
-    `Je vous adresse ma candidature spontanée${title ? ` pour un poste de ${title}` : ""} chez ${company}.`,
+    `Je vous adresse ma candidature spontanée${title ? ` pour un poste de ${title}` : ""}${company ? ` chez ${company}` : ""}.`,
   ];
   if (p.pitch.trim()) lines.push("", p.pitch.trim());
   lines.push(
@@ -198,12 +209,7 @@ export function createApplyTab({ fetchFeatured }) {
   const pitchCount = $("pitch-count");
   const feedbackEl = $("profile-feedback");
 
-  const readProfile = () => {
-    const saved = store.get(PROFILE_KEY, {});
-    return Object.fromEntries(PROFILE_FIELDS.map((f) => [f, typeof saved[f] === "string" ? saved[f] : ""]));
-  };
-
-  let profile = readProfile();
+  let profile = loadProfile();
   let selection = new Set(store.get(SELECTION_KEY, []));
   let categories = null;
   let cv = null; // { name, type, size, savedAt, blob }
@@ -214,6 +220,41 @@ export function createApplyTab({ fetchFeatured }) {
   const saveSelection = () => store.set(SELECTION_KEY, [...selection]);
   const allCompanies = () => (categories || []).flatMap((cat) => cat.companies);
   const selectedCompanies = () => allCompanies().filter((c) => selection.has(c.name));
+
+  // --- Favori « Remplir avec Sophia Jobs » ---
+  const bookmarklet = $("bookmarklet");
+  const fillHint = $("fill-hint");
+  const fillStatus = $("fill-status");
+  const fillHintHtml = fillHint.innerHTML;
+  let fillHintTimer = null;
+  bookmarklet.href = bookmarkletHref(location.origin, fillKey());
+  // Cliqué ici, il n'a rien à remplir : le bouton se glisse dans la barre de favoris.
+  bookmarklet.addEventListener("click", (e) => {
+    e.preventDefault();
+    clearTimeout(fillHintTimer);
+    fillHint.innerHTML = `${icon("info")}<span>Ne cliquez pas ici : <strong>glissez</strong> ce bouton jusqu'à votre barre de favoris.</span>`;
+    fillHint.classList.add("is-warning");
+    bookmarklet.classList.remove("is-nudge");
+    void bookmarklet.offsetWidth; // relance l'animation
+    bookmarklet.classList.add("is-nudge");
+    fillHintTimer = setTimeout(() => {
+      fillHint.innerHTML = fillHintHtml;
+      fillHint.classList.remove("is-warning");
+    }, 6000);
+  });
+  // Délégué : la consigne (et donc ce bouton) est réécrite après un clic sur le favori.
+  fillHint.addEventListener("click", async (e) => {
+    const btn = e.target.closest("#bookmarklet-copy");
+    if (btn) flash(btn, await copyText(bookmarklet.href));
+  });
+
+  function renderFillStatus() {
+    const used = store.get(FILL_USED_KEY, null);
+    const day = typeof used === "string" ? formatDay(used) : "";
+    fillStatus.hidden = !day;
+    fillStatus.innerHTML = day ? `${icon("check-circle")}Favori installé · dernier remplissage le ${escapeHtml(day)}` : "";
+  }
+  renderFillStatus();
 
   // --- Profil ---
   function fillForm() {
@@ -254,8 +295,8 @@ export function createApplyTab({ fetchFeatured }) {
 
   $("profile-clear").addEventListener("click", async () => {
     if (!confirm("Effacer votre profil, votre CV, votre sélection et le suivi de vos candidatures sur cet appareil ?")) return;
-    for (const key of [PROFILE_KEY, SELECTION_KEY, SENT_KEY]) remove(key);
-    profile = readProfile();
+    for (const key of [PROFILE_KEY, SELECTION_KEY, SENT_KEY, CURRENT_KEY]) remove(key);
+    profile = loadProfile();
     selection = new Set();
     cv = null;
     try {
@@ -434,7 +475,7 @@ export function createApplyTab({ fetchFeatured }) {
     if (!cv) missing.push("CV");
     startHint.textContent = missing.length
       ? `Profil incomplet (${missing.join(", ")}) : vous pourrez tout de même avancer.`
-      : "Profil complet : chaque champ sera prêt à copier.";
+      : "Profil complet : chaque formulaire pourra être rempli en un clic.";
     startHint.classList.toggle("is-ok", !missing.length);
   }
 
@@ -516,6 +557,7 @@ export function createApplyTab({ fetchFeatured }) {
       ["Objet", subjectFor(p)],
     ].filter(([, value]) => value.trim());
     const pct = Math.round((index / queue.length) * 100);
+    store.set(CURRENT_KEY, { name: c.name, at: new Date().toISOString() });
 
     runnerEl.innerHTML = `
       <header class="runner-head">
@@ -539,7 +581,11 @@ export function createApplyTab({ fetchFeatured }) {
             <a class="btn ${run.opened ? "btn-ghost" : "btn-primary"}" data-act="open" href="${safeUrl(target.url)}" target="_blank" rel="noopener">${icon("external-link")}Ouvrir ${escapeHtml(hostOf(target.url) || "leur site")}</a>
           </li>
           <li>
-            <h3>Copiez-collez vos informations</h3>
+            <h3>Remplissez leur formulaire</h3>
+            <p class="muted small runner-fill-hint">
+              <span class="hide-touch">${icon("zap")}Sur leur formulaire, cliquez sur votre favori <strong>Remplir avec Sophia Jobs</strong> : les champs et le CV se remplissent tout seuls. Sinon, copiez-collez :</span>
+              <span class="show-touch">Copiez-collez vos informations dans leur formulaire :</span>
+            </p>
             ${
               fields.length
                 ? `<div class="copy-grid">${fields.map(([label, value]) => copyField(label, value)).join("")}${p.pitch.trim() ? copyField("Présentation", p.pitch.trim(), true) : ""}</div>`
@@ -577,6 +623,7 @@ export function createApplyTab({ fetchFeatured }) {
   }
 
   function renderSummary() {
+    remove(CURRENT_KEY);
     const sentCount = [...run.results.values()].filter((r) => r === "sent").length;
     const skipped = run.queue.length - sentCount;
     const rows = run.queue
@@ -608,6 +655,7 @@ export function createApplyTab({ fetchFeatured }) {
 
   function closeRunner() {
     run = null;
+    remove(CURRENT_KEY);
     runnerEl.hidden = true;
     runnerEl.innerHTML = "";
     setupEl.hidden = false;
@@ -616,7 +664,9 @@ export function createApplyTab({ fetchFeatured }) {
   }
 
   function advance(result) {
-    run.results.set(run.queue[run.index].name, result);
+    const name = run.queue[run.index].name;
+    // Revenu sur une entreprise déjà envoyée puis « Passer » : elle reste envoyée.
+    run.results.set(name, result === "skipped" && run.results.get(name) === "sent" ? "sent" : result);
     run.index++;
     run.opened = false;
     renderRunner();
@@ -665,16 +715,23 @@ export function createApplyTab({ fetchFeatured }) {
     }
   });
 
+  // Message retouché : le favori reprendra cette version pour la même entreprise.
+  runnerEl.addEventListener("input", (e) => {
+    if (e.target.id !== "runner-message" || !run || run.index >= run.queue.length) return;
+    store.set(CURRENT_KEY, { name: run.queue[run.index].name, at: new Date().toISOString(), message: e.target.value });
+  });
+
   // Un autre onglet a modifié le profil, la sélection ou le suivi : on se resynchronise.
   window.addEventListener("storage", (e) => {
     if (e.key === PROFILE_KEY && !form.contains(document.activeElement)) {
-      profile = readProfile();
+      profile = loadProfile();
       fillForm();
     }
     if (e.key === SELECTION_KEY || e.key === SENT_KEY) {
       selection = new Set(store.get(SELECTION_KEY, []));
       if (!run) renderList();
     }
+    if (e.key === FILL_USED_KEY) renderFillStatus();
   });
 
   async function init() {

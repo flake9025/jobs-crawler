@@ -245,19 +245,39 @@
           <h1 class="hero-title">Vos candidatures spontanées, <span>en série</span></h1>
           <p class="hero-sub">
             Remplissez votre profil une fois et cochez les entreprises qui vous intéressent : pour chacune,
-            Sophia Jobs ouvre sa page de candidature officielle et prépare chaque champ à copier.
+            Sophia Jobs ouvre sa page de candidature officielle, puis remplit son formulaire en un clic ou prépare chaque champ à copier.
           </p>
         </div>
       </section>
       <div class="container wide">
-        <div class="notice">
-          <span data-icon="info"></span>
-          <span>
-            <strong>Pourquoi pas d'envoi automatique ?</strong>
-            Aucune de ces entreprises n'ouvre son outil de recrutement (Workday, Talentsoft, SuccessFactors…)
-            à des envois extérieurs : la validation se fait sur leur site, en quelques copier-coller.
-          </span>
-        </div>
+        <section class="card fill-card" aria-labelledby="fill-card-title">
+          <div class="fill-card-main">
+            <span class="fill-card-icon" data-icon="zap"></span>
+            <div>
+              <h2 id="fill-card-title">Remplissage automatique des formulaires</h2>
+              <p class="muted small">
+                Glissez ce bouton dans votre barre de favoris. Sur le formulaire d'une entreprise, un clic sur le favori
+                remplit votre identité, vos coordonnées, votre message et joint votre CV. Vous vérifiez, puis validez vous-même.
+              </p>
+            </div>
+          </div>
+          <div class="fill-card-install">
+            <a class="bookmarklet" id="bookmarklet" href="#" draggable="true" title="Glissez-moi dans la barre de favoris"><span data-icon="zap"></span>Remplir avec Sophia Jobs</a>
+            <p id="fill-hint" class="small muted">
+              Barre de favoris masquée ? <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>B</kbd> (<kbd>⌘</kbd>+<kbd>Maj</kbd>+<kbd>B</kbd> sur Mac)
+              · <button type="button" class="btn-link" id="bookmarklet-copy">copier son adresse</button>
+            </p>
+            <p id="fill-status" class="small fill-card-status" hidden></p>
+          </div>
+          <p class="fill-card-mobile small muted">
+            <span data-icon="info"></span>Disponible sur ordinateur (Chrome, Edge, Firefox). Sur mobile, utilisez les boutons Copier de chaque candidature.
+          </p>
+          <details class="fill-card-why small muted">
+            <summary>Pourquoi pas d'envoi automatique ?</summary>
+            Aucune de ces entreprises n'ouvre son outil de recrutement (Workday, Talentsoft, SuccessFactors…) à des envois
+            extérieurs : la validation se fait sur leur site. Le favori remplit leur formulaire, mais ne l'envoie jamais.
+          </details>
+        </section>
 
         <div id="apply-setup" class="apply-layout">
           <form id="apply-profile" class="card apply-card" autocomplete="on" novalidate>
