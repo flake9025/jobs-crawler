@@ -4,6 +4,7 @@ import {
   normalizeJob,
   tokenize,
   normalizeText,
+  nameWords,
   parseLooseDate,
 } from "../util.js";
 import { detectLocation } from "../geo.js";
@@ -44,24 +45,44 @@ const STOPWORDS = new Set([
 // « microsoft.com/fr » passait pour un « m/f » et « at any stage » pour un stage.
 const GENDER_MARKER_RE =
   /(?:^|[^a-z0-9])(?:[hf]\s*[/-]\s*[hf]|[mfw]\s*\/\s*[mfw])(?:\s*\/\s*(?:x|d|nb))?(?![a-z0-9])/;
-const CONTRACT_WORDS =
-  "cdi|cdd|stage|stagiaire|alternance|alternant|apprentissage|apprenti|freelance|internship|intern|interim";
-const CONTRACT_MARKER_RE = new RegExp(`\\b(?:${CONTRACT_WORDS})\\b`);
-const CONTRACT_MARKER_ALL_RE = new RegExp(`\\b(?:${CONTRACT_WORDS})\\b`, "g");
+const CONTRACT_WORDS = new Set([
+  "cdi", "cdd", "stage", "stagiaire", "alternance", "alternant", "apprentissage", "apprenti",
+  "freelance", "internship", "intern", "interim",
+]);
 
-// Mots de rubrique : « Stage et alternance » ou « Offres de stage » sont des catégories.
+// Mots de rubrique : « Stage et alternance », « Jobs d'été, stages & apprentissage »
+// ou « Le contrat CDI intérimaire » sont des catégories, pas des postes.
 const CATEGORY_WORDS = new Set([
   "offre", "offres", "nos", "poste", "postes", "emploi", "emplois", "job", "jobs",
-  "opportunites", "opportunities", "programme", "program", "etudiants", "students",
+  "opportunites", "opportunities", "programme", "program", "etudiant", "etudiants", "students",
   "jeunes", "diplomes", "graduates", "candidature", "candidatures", "contrat", "contrats",
+  "stages", "alternances", "apprentissages", "internships", "ete", "saisonnier", "saisonniers",
+  "recrutement", "recrutements", "demande", "demandes", "interimaire", "interimaires",
+  "formation", "formations", "stagiaires", "alternants", "apprentis", "interns",
 ]);
 
 // Libellés d'action ou de rubrique en début de lien (jamais des intitulés d'offre).
 const GENERIC_START_RE =
-  /^(?:explore[rz]?|discover|decouvr\w*|rechercher|see|view|voir|learn|en savoir|lire|read|meet|rencontr\w*|our|nos|notre|why|pourquoi|how|comment|life at|la vie|working at|travailler|join|rejoign\w*|apply|postuler|candidature|spontan\w*|all jobs|toutes les offres|tous les postes|retour|suivant|precedent|filtr\w*|trier|open positions|domaines? d)\b/;
+  /^(?:explore[rz]?|discover|decouvr\w*|rechercher|see|view|voir|learn|en savoir|lire|read|meet|rencontr\w*|our|nos|notre|why|pourquoi|how|comment|life at|la vie|working at|travailler|join|rejoi(?:gn|ndr)\w*|apply|postuler|candidature|spontan\w*|all jobs|toutes les offres|tous les postes|retour|suivant|precedent|filtr\w*|trier|open positions|domaines? d|demande[rsz]?|depose[rz]?|envoye[rz]?|remplir|exporter|imprimer|partage[rz]?|telecharge[rz]?|download|share|je|consulte[rz] (?:nos|les|toutes|tous)|accueillir|recrute[rz]|propose[rz]|faire|autres?|plus d\w*|pour en savoir|publie\w*|mis a jour|posted|updated)\b/;
 // Contenus éditoriaux des sites carrières (témoignages, FAQ, avantages…).
 const NOISE_RE =
-  /\b(?:stor(?:y|ies)|temoignages?|faq|blog|podcasts?|webinars?|conseils|tips|benefits|avantages|culture|values|valeurs|diversite|diversity|inclusion|locations|newsletter|cookies?|privacy|confidentialite|mentions legales|login|sign in|connexion|inscription|alertes?|subscribe|abonne\w*|rss|ma selection)\b/;
+  /\b(?:stor(?:y|ies)|temoignages?|faq|blog|podcasts?|webinars?|conseils|tips|benefits|avantages|culture|values|valeurs|diversite|diversity|inclusion|locations|newsletter|cookies?|privacy|confidentialite|mentions legales|login|sign in|connexion|inscription|alertes?|subscribe|abonne\w*|rss|ma selection|taxes? d.?apprentissage|infos?|interviews?|telecharg\w*|notre|nos)\b/;
+// « Index égalité H/F », « Index sur l'égalité professionnelle H/F », « Égalité
+// professionnelle F/H », « diversité F/H et carrière » : le marqueur qualifie un thème.
+const EQUALITY_MARKER_RE =
+  /\bindex (?:(?:de|sur) )?(?:[ld].)?egalite\b|^(?:l.)?(?:egalite|parite|mixite|diversite)(?: (?:professionnelle|salariale|femmes?[ -]hommes?))?(?:\s*[hf]\s*[/-]\s*[hf])?$|\b(?:egalite|parite|mixite|diversite)\s*[hf]\s*[/-]\s*[hf]\b/;
+// Titre d'article : « Freelance à Nice : les meilleures options pour… ».
+const ARTICLE_TITLE_RE = /\s:\s*(?:(?:les?|la|des|du|un|une|comment|pourquoi|quels?|quelles?|how|why|what|the)\s|l['’])/;
+// Candidatures spontanées : un formulaire, pas un poste (y compris dans les ATS).
+const SPONTANEOUS_RE = /\bcandidatures? (?:spontanee|libre)s?\b|\b(?:spontaneous|unsolicited) applications?\b/;
+// « Stage de golf », « stages de voile » : des cours, pas des stages en entreprise.
+const LEISURE_STAGE_RE =
+  /\bstages? (?:de |d.)?(?:golf|tennis|padel|voile|surf|ski|equitation|danse|natation|yoga|theatre|musique|cuisine|poterie|dessin|peinture|photo|football|foot|basket|judo|karate|escalade|plongee|kayak|initiation|perfectionnement|vacances)\b/;
+// Filtres de durée des moteurs de recherche (« Moins d'1 mois », « 1-2 ans »).
+const DURATION_RE = /^(?:(?:moins|plus) d.?\s*)?\d+(?:\s*(?:-|a)\s*\d+)?\s*(?:mois|ans?|semaines?|jours?|heures?)$/;
+// Sélecteur de langue (« English », « Version française ») pointant vers la même page.
+const LANGUAGE_SWITCH_RE =
+  /^(?:english|francais|french|deutsch|espanol|italiano)(?: version)?$|^version (?:francaise|anglaise|originale)$/;
 const LISTING_COUNT_RE = /\b\d+\s+(?:offres?|job openings?|jobs?|vacanc(?:y|ies)|postes?)\b/;
 
 // Mots de navigation à exclure des faux intitulés.
@@ -73,15 +94,29 @@ const NAV_NOISE = [
   "cgv", "cgu", "faq", "partenaires", "clients", "equipe", "team", "nos valeurs",
 ];
 
-// Chemins d'offre individuelle (/jobs/developpeur-java, /offre/12345, /offres/details/DevOps_8,
-// /offres-emploi/78/developpeur-php.htm…).
+// Chemins d'offre individuelle (/jobs/developpeur-java, /offres-emploi/78/developpeur-php.htm…).
+// « offres » (offres commerciales) et « carrieres » (pages carrières éditoriales) sont
+// ambigus : un identifiant y est exigé (/offres/details/DevOps_8).
 const OFFER_PATH_RE =
-  /\/(?:jobs?|offres?|offres?-(?:d-)?emplois?|emplois?|postes?|careers?|carrieres?|job-offer|job-details|vacanc(?:y|ies)|vacature|opportunit(?:y|ies)|positions?|annonces?)\/(?:(?:details?|view|show|fiche|\d+)\/)?(?:[^/?#]*-[^/?#]*|[^/?#]*\d{4,}[^/?#]*|[^/?#]+_\d+)/;
+  /\/(?:(?:jobs?|offres?-(?:de-|d-|d)?emplois?|emplois?|postes?|job-offer|job-details|vacanc(?:y|ies)|vacature|opportunit(?:y|ies)|positions?|annonces?)\/(?:(?:details?|view|show|fiche|\d+)\/)?(?:[^/?#]*-[^/?#]*|[^/?#]*\d{4,}[^/?#]*|[^/?#]+_\d+)|(?:offres?|careers?|carrieres?)\/(?:(?:(?:details?|view|show|fiche)\/)?(?:[^/?#]*\d{4,}[^/?#]*|[^/?#]+_\d+)|\d+\/[^/?#]+))/;
 const OFFER_SLUG_RE =
   /(?:^|[^a-z0-9])(?:h-f|f-h|hf|fh|m-f|cdi|cdd|alternance|stage|stagiaire|internship)(?:[^a-z0-9]|$)/;
+// Segment réduit au marqueur (/stage/, /alternance/) : une rubrique, pas une offre.
+const MARKER_SEGMENT_RE = /^(?:cdi|cdd|alternances?|stages?|stagiaires?|internships?)$/;
 // Chemins de rubriques (listes, catégories, contenus) qui ne sont pas des offres.
 const LISTING_PATH_RE =
-  /\/(?:search|recherche|categor(?:y|ies)|locations?|teams?|departments?|students?|graduates?|faq|benefits|culture|blog|news|events?|stories|about|contact|login|alerts?|saved|favorites)(?:\/|$)/;
+  /\/(?:search|recherche|categor(?:y|ies?)|locations?|teams?|departments?|students?|graduates?|faq|benefits|culture|blog|news|events?|stories|about|contact|login|alerts?|saved|favorites)(?:\/|$)/;
+// Rubriques éditoriales : une annonce qui y est publiée porte la mention H/F ; les
+// autres liens sont des articles (« Assises de l'apprentissage »).
+const EDITORIAL_PATH_RE =
+  /\/(?:actualites?|actus?|evenements?|agenda|presse|magazine|temoignages?|podcasts?|webinars?|posts?|articles?)(?:\/|$)/;
+
+// Menus (dont ceux de WordPress), en-tête, pied de page et filtres de recherche :
+// la navigation du site, pas des offres.
+const PAGE_CHROME_SELECTOR =
+  'nav, [role="navigation"], [role="menubar"], [role="menu"], [role="banner"], [role="contentinfo"], .menu-item, fieldset, label';
+// Segments de langue ou d'accueil, sans valeur pour situer une page (/fr/, /en-us/, /accueil).
+const NEUTRAL_SEGMENT_RE = /^(?:[a-z]{2}(?:[-_][a-z]{2})?|index|accueil|home|default)(?:\.[a-z]+)?$/;
 
 // Pagination et variantes de langue d'une même page de résultats.
 const PAGINATION_PATH_RE = /\/page\/\d+\/?$/i;
@@ -201,16 +236,49 @@ function urlShape(url) {
   return [segments[0], ...segments.slice(1).map(kind)].join("/");
 }
 
+/** Mots porteurs de sens (hors mots vides, contrats et rubriques). */
+function significantWords(text) {
+  return normalize(text)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w) && !CONTRACT_WORDS.has(w) && !CATEGORY_WORDS.has(w));
+}
+
+function urlSegments(url) {
+  return normalize(urlPath(url)).split("/").filter(Boolean);
+}
+
+function templateAt(segments, depth) {
+  const kind = (s) => (/^\d+$/.test(s) ? "#" : /\d/.test(s) ? "x#" : "x");
+  return `${depth}:${[...segments.slice(0, depth), ...segments.slice(depth).map(kind)].join("/")}`;
+}
+
+/**
+ * Gabarit « dossier » d'une offre : segments littéraux jusqu'au premier qui porte
+ * un identifiant ou un mot de l'intitulé, puis nature des suivants :
+ *   /offres-emploi/78/developpeur-php.htm → "1:offres-emploi/#/x"
+ *   /ma-ville/offres-demploi/un-technicien-tic-h-f → "2:ma-ville/offres-demploi/x"
+ * Sur un CMS, toutes les pages ont la forme "x/x/x" : seul le dossier distingue la
+ * rubrique des offres du reste du menu.
+ */
+function offerTemplate(url, title) {
+  const segments = urlSegments(url);
+  if (segments.length < 2) return "";
+  const words = new Set(significantWords(title));
+  let depth = 1;
+  while (
+    depth < segments.length - 1 &&
+    !/\d/.test(segments[depth]) &&
+    !significantWords(segments[depth]).some((w) => words.has(w))
+  ) {
+    depth++;
+  }
+  return templateAt(segments, depth);
+}
+
 function isCareerLink(text, href) {
   const t = normalize(text);
   const h = normalize(href);
   return CAREER_HINTS.some((k) => t.includes(k) || h.includes(k));
-}
-
-/** L'intitulé porte-t-il un marqueur d'offre (H/F, CDI, stage…) ? */
-function looksLikeOffer(text) {
-  const t = normalize(text);
-  return GENDER_MARKER_RE.test(t) || CONTRACT_MARKER_RE.test(t);
 }
 
 function hasNavNoise(t) {
@@ -222,25 +290,40 @@ function hasNavNoise(t) {
   return NAV_NOISE.some((n) => padded.includes(` ${n} `));
 }
 
+/** Mots du nom de l'entreprise : « Interaction Intérim - Arras » n'est pas un contrat d'intérim. */
+function companyWordsOf(company) {
+  return new Set(
+    [company.name, ...(company.aliases || [])]
+      .flatMap((n) => nameWords(n || ""))
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+  );
+}
+
 /**
  * Qualifie le texte d'un lien : "offer" (marqueur explicite), "maybe" (à confirmer
  * par l'URL) ou "reject" (navigation, FAQ, témoignage, rubrique…).
+ * @param {Set<string>} [companyWords] mots du nom de l'entreprise, ignorés comme marqueurs
  */
-function classifyTitle(text) {
+function classifyTitle(text, companyWords = new Set()) {
   const t = normalize(text);
-  if (FACET_COUNT_RE.test(t)) return "reject";
+  if (FACET_COUNT_RE.test(t) || SPONTANEOUS_RE.test(t) || EQUALITY_MARKER_RE.test(t)) return "reject";
+  if (LEISURE_STAGE_RE.test(t) || DURATION_RE.test(t) || LANGUAGE_SWITCH_RE.test(t)) return "reject";
   // Compteurs de listes (« Ma sélection : 0 offre(s) », « Selection: 0 job opening(s) »).
   if (LISTING_COUNT_RE.test(t) && t.split(/\s+/).length <= 6) return "reject";
   if (GENDER_MARKER_RE.test(t)) return "offer";
   if (/[?!]$/.test(t) || t.split(/\s+/).length > 14) return "reject";
-  if (GENERIC_START_RE.test(t) || NOISE_RE.test(t) || hasNavNoise(t)) return "reject";
-  if (CONTRACT_MARKER_RE.test(t)) {
-    const rest = t
-      .replace(CONTRACT_MARKER_ALL_RE, " ")
-      .split(/[^a-z0-9+#]+/)
-      .filter((w) => w.length > 1 && !STOPWORDS.has(w) && !CATEGORY_WORDS.has(w));
+  if (GENERIC_START_RE.test(t) || NOISE_RE.test(t) || ARTICLE_TITLE_RE.test(t) || hasNavNoise(t)) return "reject";
+  const ownWords = (re) => t.split(re).filter((w) => w && !companyWords.has(w));
+  if (ownWords(/[^a-z0-9]+/).some((w) => CONTRACT_WORDS.has(w))) {
+    const rest = ownWords(/[^a-z0-9+#]+/).filter(
+      (w) => w.length > 1 && !CONTRACT_WORDS.has(w) && !STOPWORDS.has(w) && !CATEGORY_WORDS.has(w)
+    );
     return rest.length ? "offer" : "reject";
   }
+  // « Jeunes diplômés », « Emplois étudiants » : une rubrique ; « DOOMAP D-3000 » :
+  // le nom de l'entreprise suivi d'une référence, un produit.
+  const words = ownWords(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
+  if (words.every((w) => CATEGORY_WORDS.has(w) || !/[a-z]{3}/.test(w))) return "reject";
   return "maybe";
 }
 
@@ -339,8 +422,9 @@ function listingVariants($, pageUrl) {
  * Étape 2 : sur une page, extrait les liens candidats (intitulé + URL + contexte).
  * @param {boolean} isCareerPage true si la page est identifiée comme une page carrières
  *        (dans ce cas un lien sans marqueur est accepté si son URL désigne une offre).
+ * @param {Set<string>} [companyWords] mots du nom de l'entreprise (voir classifyTitle)
  */
-function extractCandidates($, pageUrl, isCareerPage) {
+function extractCandidates($, pageUrl, isCareerPage, companyWords) {
   const successFactors = extractSuccessFactorsRows($, pageUrl);
   if (successFactors) return successFactors;
 
@@ -363,22 +447,76 @@ function extractCandidates($, pageUrl, isCareerPage) {
     }
     if (withoutHash(full) === pageKey) return;
 
-    const kind = classifyTitle(text);
+    const kind = classifyTitle(text, companyWords);
     if (kind === "reject") return;
+    // Liens des menus et pieds de page : écartés, sauf intitulé explicite (« Développeur H/F »).
+    const gendered = GENDER_MARKER_RE.test(normalize(text));
+    if (!gendered && $(el).closest(PAGE_CHROME_SELECTOR).length) return;
     const path = normalize(urlPath(full));
     if (LISTING_PATH_RE.test(path) || FACET_QUERY_RE.test(full)) return;
+    if (!gendered && EDITORIAL_PATH_RE.test(path)) return;
     let weak = false;
     if (kind === "maybe") {
       // Sans marqueur : uniquement sur une page carrières, vers le même site. Sans
       // chemin d'offre reconnaissable, le lien reste "faible" : il n'est retenu que
       // s'il suit le gabarit d'URL d'offres confirmées de la même page.
       if (!(isCareerPage && hostOf(full) === pageHost && plausibleTitle(text))) return;
-      weak = !(OFFER_PATH_RE.test(path) || OFFER_SLUG_RE.test(path));
+      const segments = urlSegments(full);
+      const slugs = MARKER_SEGMENT_RE.test(segments.at(-1) || "") ? segments.slice(0, -1) : segments;
+      weak = !(OFFER_PATH_RE.test(path) || slugs.some((s) => OFFER_SLUG_RE.test(s)));
     }
 
-    candidates.push({ title: text, url: full, context: linkContext($, el), weak });
+    candidates.push({ title: text, url: full, context: linkContext($, el), weak, marked: kind === "offer" });
   });
   return candidates;
+}
+
+/**
+ * Liens sans marqueur conservés quand la page compte des offres confirmées (H/F, CDI…) :
+ *  - lien au chemin d'offre (/jobs/…) : même forme d'URL qu'une offre confirmée ;
+ *  - lien "faible" : même dossier qu'une offre confirmée (/offres-emploi/8/embarque.htm
+ *    comme /offres-emploi/78/…-h-f.htm), à condition que les liens faibles n'y soient pas
+ *    plus de deux fois plus nombreux : un « Demande de stage » isolé ne doit pas valider
+ *    tout le menu.
+ * Les offres d'API d'ATS ne servent pas de modèle : leurs URLs ne disent rien du site.
+ */
+function withTemplateMatches(pool) {
+  const models = pool.filter((c) => c.marked && !c.trusted);
+  const shapes = new Set(models.map((c) => urlShape(c.url)).filter(Boolean));
+  const templates = new Set(models.map((c) => offerTemplate(c.url, c.title)).filter(Boolean));
+  const depths = [...new Set([...templates].map((t) => Number(t.split(":")[0])))];
+  const templatesOf = (url) => {
+    const segments = urlSegments(url);
+    return depths
+      .filter((d) => d < segments.length)
+      .map((d) => templateAt(segments, d))
+      .filter((t) => templates.has(t));
+  };
+  // Par gabarit : URLs distinctes des offres (confirmées ou au chemin d'offre) et des liens faibles.
+  const support = new Map();
+  const weak = new Map();
+  for (const c of pool) {
+    if (c.trusted) continue;
+    const counts = c.weak ? weak : support;
+    for (const t of templatesOf(c.url)) {
+      if (!counts.has(t)) counts.set(t, new Set());
+      counts.get(t).add(withoutHash(c.url));
+    }
+  }
+  return pool.filter((c) => {
+    if (c.trusted || c.marked) return true;
+    if (!c.weak) return shapes.has(urlShape(c.url));
+    return templatesOf(c.url).some((t) => (support.get(t)?.size || 0) * 2 >= weak.get(t).size);
+  });
+}
+
+/**
+ * Page d'agence ou d'établissement sur le site d'un réseau (/agence/294,
+ * /campus/sophia, /reseau/novellipse_antibes) : ses liens carrières mènent aux offres
+ * de tout le réseau, en France ou ailleurs.
+ */
+function isBranchPage(site) {
+  return urlSegments(site || "").some((s) => !NEUTRAL_SEGMENT_RE.test(s));
 }
 
 /**
@@ -387,23 +525,14 @@ function extractCandidates($, pageUrl, isCareerPage) {
  *  - exclusion des offres explicitement situées hors des Alpes-Maritimes,
  *  - déduplication par intitulé (un même poste publié dans plusieurs langues),
  *  - priorité aux offres "confirmées" (marqueur H/F, CDI…) sur les liens incertains.
+ * @param {boolean} [branch] site parcouru depuis une page d'agence (voir isBranchPage)
  */
-function buildOffers(candidates, company) {
-  let pool = company.offerUrlFilter
-    ? candidates.filter((c) => c.url.includes(company.offerUrlFilter))
-    : candidates;
-  const isConfirmed = (c) => c.trusted || looksLikeOffer(c.title);
-  if (pool.some(isConfirmed)) {
-    // Liens sans marqueur H/F conservés s'ils suivent le gabarit d'URL des offres
-    // confirmées de la page (/offres-emploi/8/embarque.htm comme /offres-emploi/78/…-h-f.htm).
-    // Les offres d'API d'ATS ne servent pas de modèle : leurs URLs ne disent rien du menu du site.
-    const shapes = new Set(
-      pool.filter((c) => !c.trusted && looksLikeOffer(c.title)).map((c) => urlShape(c.url)).filter(Boolean)
-    );
-    pool = pool.filter((c) => isConfirmed(c) || shapes.has(urlShape(c.url)));
-  } else {
-    pool = pool.filter((c) => !c.weak);
-  }
+function buildOffers(candidates, company, branch = false) {
+  let pool = (
+    company.offerUrlFilter ? candidates.filter((c) => c.url.includes(company.offerUrlFilter)) : candidates
+  ).filter((c) => !SPONTANEOUS_RE.test(normalize(c.title)));
+  if (pool.some((c) => c.trusted || c.marked)) pool = withTemplateMatches(pool);
+  else pool = pool.filter((c) => !c.weak);
 
   const located = pool.map((c) => {
     const parts = [c.location, c.title, urlPath(c.url), c.context];
@@ -411,15 +540,17 @@ function buildOffers(candidates, company) {
   });
   // Liste multi-sites (ESN, grands groupes) : dès qu'une part notable des offres est
   // située hors zone, une offre sans lieu local explicite peut être n'importe où.
-  // `localOnly` force ce mode pour les employeurs connus pour publier nationalement.
+  // `localOnly` force ce mode pour les employeurs connus pour publier nationalement,
+  // de même qu'une page d'agence : la région seule (Marseille en fait partie) ne suffit pas.
+  const strict = Boolean(company.localOnly) || branch;
   const distant = located.filter((x) => x.place.verdict === "distant").length;
-  const multiSite = Boolean(company.localOnly) || distant >= Math.max(2, located.length * 0.25);
+  const multiSite = strict || distant >= Math.max(2, located.length * 0.25);
   const fallbackLocation = detectLocation([company.city]).label || "Sophia Antipolis";
   const byTitle = new Map();
   for (const { c, parts, place } of located) {
     if (place.verdict === "distant") continue;
-    // Lieu limité à « Provence-Alpes-Côte d'Azur » : accepté, sauf localOnly.
-    const regional = place.region && !company.localOnly;
+    // Lieu limité à « Provence-Alpes-Côte d'Azur » : accepté, sauf en mode strict.
+    const regional = place.region && !strict;
     if (multiSite && place.verdict !== "local" && !regional && !c.trusted) continue;
     const key = normalize(c.title).replace(/[^a-z0-9]+/g, " ").trim();
     if (!key || byTitle.has(key)) continue;
@@ -453,14 +584,14 @@ function preciseLocalLabel(place, parts) {
 }
 
 /** Page carrières connue (souvent une recherche déjà filtrée sur la zone). */
-async function scanCareerSite(careerSite, result) {
+async function scanCareerSite(careerSite, result, companyWords) {
   const first = await loadPage(careerSite);
   if (!first.ok) {
     result.error = result.error || first.error;
     return { candidates: [], reached: false };
   }
   result.careerUrls.push(careerSite);
-  const candidates = extractCandidates(first.$, first.url, true);
+  const candidates = extractCandidates(first.$, first.url, true, companyWords);
   // Page carrières "vitrine" qui intègre un ATS (widget Greenhouse, lien Workday…).
   const ats = findAtsInPage(first.$, first.url);
   if (ats) {
@@ -475,13 +606,13 @@ async function scanCareerSite(careerSite, result) {
     const page = await loadPage(url);
     if (!page.ok) continue;
     result.careerUrls.push(url);
-    candidates.push(...extractCandidates(page.$, page.url, true));
+    candidates.push(...extractCandidates(page.$, page.url, true, companyWords));
   }
   return { candidates, reached: true };
 }
 
 /** Site corporate : découverte des pages carrières depuis la home (+ chemins devinés). */
-async function scanCorporateSite(company, result) {
+async function scanCorporateSite(company, result, companyWords) {
   const base = company.site.replace(/\/$/, "");
   let reached = false;
   let discovered = [];
@@ -517,8 +648,8 @@ async function scanCorporateSite(company, result) {
     // chemin contient un mot-clé carrières (career, carriere, emploi, jobs, recrut…).
     const isCareerPage =
       careerSet.has(url) || /career|carriere|emploi|jobs|recrut|rejoindre/.test(normalize(url));
-    candidates.push(...extractCandidates(page.$, page.url, isCareerPage));
-    if (candidates.filter((c) => looksLikeOffer(c.title)).length >= MAX_OFFERS_PER_COMPANY) break;
+    candidates.push(...extractCandidates(page.$, page.url, isCareerPage, companyWords));
+    if (candidates.filter((c) => c.marked).length >= MAX_OFFERS_PER_COMPANY) break;
   }
 
   if (ats) {
@@ -560,6 +691,7 @@ export async function scrapeCompany(company) {
   if (!company.site && !careerSites.length) return result;
 
   const describe = (err) => (err.name === "AbortError" ? "timeout" : err.message);
+  const companyWords = companyWordsOf(company);
   let candidates = [];
   let reached = false;
   try {
@@ -572,7 +704,7 @@ export async function scrapeCompany(company) {
           reached = true;
           result.careerUrls.push(careerSite);
         } else {
-          const scan = await scanCareerSite(careerSite, result);
+          const scan = await scanCareerSite(careerSite, result, companyWords);
           candidates.push(...scan.candidates);
           reached = reached || scan.reached;
         }
@@ -580,12 +712,12 @@ export async function scrapeCompany(company) {
         result.error = result.error || describe(err);
       }
     }
-    if (!careerSites.length) ({ candidates, reached } = await scanCorporateSite(company, result));
+    if (!careerSites.length) ({ candidates, reached } = await scanCorporateSite(company, result, companyWords));
   } catch (err) {
     result.error = describe(err);
   }
 
-  const offers = buildOffers(candidates, company);
+  const offers = buildOffers(candidates, company, !careerSites.length && isBranchPage(company.site));
   result.truncated = offers.length > MAX_OFFERS_PER_COMPANY;
   result.jobs = offers.slice(0, MAX_OFFERS_PER_COMPANY);
   result.tookMs = Date.now() - started;
@@ -596,6 +728,77 @@ export async function scrapeCompany(company) {
   else result.status = "unreachable";
 
   return result;
+}
+
+/**
+ * Lettres du domaine d'une offre reprises par le nom d'une fiche : pour
+ * antibes-juanlespins.com, « Mairie d'Antibes-Juan-les-Pins » en couvre 18,
+ * « Antibes » 7 et « Musée Picasso » aucune.
+ */
+function domainCoverage(company, url) {
+  const label = hostOf(url).replace(/\.[a-z]+$/, "").replace(/[^a-z0-9]/g, "");
+  const covered = new Array(label.length).fill(false);
+  for (const word of [company.name, ...(company.aliases || [])].flatMap((n) => nameWords(n || ""))) {
+    if (word.length < 3) continue;
+    for (let i = label.indexOf(word); i !== -1; i = label.indexOf(word, i + 1)) {
+      covered.fill(true, i, i + word.length);
+    }
+  }
+  return covered.filter(Boolean).length;
+}
+
+/**
+ * Offres trouvées sous plusieurs fiches partageant un site (la mairie et ses musées,
+ * un réseau de bus et ses lignes dans OpenStreetMap) : chaque URL n'est gardée que
+ * sous une fiche, choisie dans cet ordre :
+ *  1. fiche curée (featured-companies.js, companies-seed.js) ;
+ *  2. site racine plutôt que page d'agence ou d'établissement (voir isBranchPage) ;
+ *  3. nom qui couvre le mieux le domaine de l'offre ;
+ *  4. ordre de l'annuaire.
+ * Une fiche dont toutes les offres sont rattachées ailleurs passe en « no-offer ».
+ *
+ * @param {Array<{company: object, jobs: Array, stat: object}>} results
+ * @returns {{jobs: Array, stats: Array}}
+ */
+function assignSharedOffers(results) {
+  const order = new Map(CRAWLABLE_COMPANIES.map((c, i) => [c, i]));
+  const score = (company, url) => [
+    company.sources?.some((s) => s === "featured" || s === "curated") ? 1 : 0,
+    careerSitesOf(company).length || !isBranchPage(company.site) ? 1 : 0,
+    domainCoverage(company, url),
+    -(order.get(company) ?? Infinity),
+  ];
+  const better = (a, b) => {
+    const i = a.findIndex((v, k) => v !== b[k]);
+    return i !== -1 && a[i] > b[i];
+  };
+
+  const owners = new Map();
+  for (const r of results) {
+    for (const j of r.jobs) {
+      const url = withoutHash(j.url);
+      const owner = owners.get(url);
+      if (!owner || better(score(r.company, url), score(owner.company, url))) owners.set(url, r);
+    }
+  }
+
+  const jobs = [];
+  const stats = [];
+  for (const r of results) {
+    const own = r.jobs.filter((j) => owners.get(withoutHash(j.url)) === r);
+    jobs.push(...own);
+    stats.push(
+      own.length === r.jobs.length
+        ? r.stat
+        : {
+            ...r.stat,
+            jobs: own.length,
+            truncated: Boolean(r.stat.truncated && own.length),
+            status: own.length ? r.stat.status : "no-offer",
+          }
+    );
+  }
+  return { jobs, stats };
 }
 
 /**
@@ -616,8 +819,8 @@ export async function crawlAllCompanies({
   concurrency = 12,
 } = {}) {
   const targets = CRAWLABLE_COMPANIES;
-  const jobs = [];
-  const stats = [];
+  // Offres et statut de chaque entreprise, rapprochés à chaque sauvegarde (assignSharedOffers).
+  const results = [];
   let index = 0;
   let done = 0;
   const inFlight = new Set();
@@ -628,28 +831,35 @@ export async function crawlAllCompanies({
       inFlight.add(company.name);
       try {
         const res = await scrapeCompany(company);
-        jobs.push(...res.jobs);
-        stats.push({
-          name: res.name,
-          site: res.site,
-          status: res.status,
-          jobs: res.jobs.length,
-          truncated: res.truncated,
-          careerUrls: res.careerUrls,
-          error: res.error,
-          tookMs: res.tookMs,
-          checkedAt: res.checkedAt,
+        results.push({
+          company,
+          jobs: res.jobs,
+          stat: {
+            name: res.name,
+            site: res.site,
+            status: res.status,
+            jobs: res.jobs.length,
+            truncated: res.truncated,
+            careerUrls: res.careerUrls,
+            error: res.error,
+            tookMs: res.tookMs,
+            checkedAt: res.checkedAt,
+          },
         });
       } catch (err) {
-        stats.push({
-          name: company.name,
-          site: company.site,
-          status: "error",
-          jobs: 0,
-          careerUrls: [],
-          error: err.message,
-          tookMs: 0,
-          checkedAt: new Date().toISOString(),
+        results.push({
+          company,
+          jobs: [],
+          stat: {
+            name: company.name,
+            site: company.site,
+            status: "error",
+            jobs: 0,
+            careerUrls: [],
+            error: err.message,
+            tookMs: 0,
+            checkedAt: new Date().toISOString(),
+          },
         });
       } finally {
         inFlight.delete(company.name);
@@ -657,7 +867,8 @@ export async function crawlAllCompanies({
         if (onProgress) onProgress(done, targets.length, [...inFlight]);
         if (onCheckpoint && done % checkpointEvery === 0) {
           try {
-            await onCheckpoint(jobs, stats);
+            const partial = assignSharedOffers(results);
+            await onCheckpoint(partial.jobs, partial.stats);
           } catch (err) {
             console.error("[crawl] checkpoint échoué :", err.message);
           }
@@ -669,6 +880,8 @@ export async function crawlAllCompanies({
   await Promise.all(
     Array.from({ length: Math.min(concurrency, targets.length) }, () => runner())
   );
+
+  const { jobs, stats } = assignSharedOffers(results);
 
   // Les entreprises non crawlées (sans site, ou site inexploitable) sont tracées
   // quand même pour que le catalogue affiche une couverture honnête.

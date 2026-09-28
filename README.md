@@ -168,8 +168,28 @@ Pour chaque entreprise, le crawler charge la page d'accueil, y découvre les lie
 « carrières / recrutement / nous rejoindre », complète avec des chemins usuels
 (`/careers`, `/recrutement`…), puis extrait les liens d'offres en s'appuyant sur des
 marqueurs (`H/F`, `CDI`, `Alternance`…) et sur la forme des URLs. Les liens de navigation
-(« Voir les 15 offres », filtres, versions traduites d'une même offre) sont écartés, et une
-entreprise est plafonnée à 40 offres (affiché « 40+ ») pour ne pas noyer les résultats.
+(menus, en-têtes et pieds de page, filtres, « Voir les 15 offres », versions traduites d'une
+même offre) sont écartés, et une entreprise est plafonnée à 40 offres (affiché « 40+ ») pour
+ne pas noyer les résultats.
+
+Plusieurs garde-fous évitent de prendre des pages ordinaires pour des offres :
+
+- un marqueur n'est retenu qu'en tant que tel : « Index égalité H/F », « Stage de golf »,
+  « Taxe d'apprentissage » ou le nom de l'employeur (« Interaction Intérim ») ne font pas une
+  offre, pas plus que les rubriques (« Stagiaires & alternants ») ou les articles
+  (actualités, témoignages, billets de blog) ;
+- un lien sans marqueur ni URL d'offre (`/jobs/…`) n'est gardé que s'il suit le **dossier
+  d'URL** d'offres confirmées du même site (`/offres-emploi/8/…` comme
+  `/offres-emploi/78/technicien-h-f.htm`), sans y être plus de deux fois plus nombreux
+  qu'elles : une seule offre publiée sur un site institutionnel ne valide pas tout son menu ;
+- une fiche sans `careerSite` dont le site est une **page d'agence ou d'établissement** d'un
+  réseau (`randstad.fr/agence/294`, `ynov.com/campus/sophia`) ne garde que les offres situées
+  explicitement dans les Alpes-Maritimes : ses liens carrières mènent aux offres nationales.
+
+Une offre trouvée sous plusieurs fiches qui partagent un site (la mairie et ses musées, un
+réseau de bus et ses lignes dans OpenStreetMap) n'est rattachée qu'à une seule : la fiche
+curée d'abord, puis le site racine plutôt qu'une page d'établissement, puis le nom le plus
+proche du domaine de l'offre (« Mairie d'Antibes-Juan-les-Pins » pour antibes-juanlespins.com).
 
 Quand la page d'offres est un **ATS connu** (Workday, Phenom, Greenhouse, Lever, Recruitee,
 SmartRecruiters, SuccessFactors, Yello), le crawler interroge directement son API publique : les
@@ -294,6 +314,9 @@ limite mémoire explicite sur le conteneur.
   rattachées à la fiche.
 - Le niveau d'expérience et le type de contrat sont déduits du texte de l'offre quand la
   source ne les fournit pas ; ils peuvent être absents (filtre « Non précisé »).
+- Les offres publiées sans lien propre (texte déplié dans la page, comme sur le site du
+  centre hospitalier d'Antibes) ne sont pas extraites. La localisation repose sur une liste
+  de lieux : une offre située dans une petite commune hors région peut passer pour locale.
 
 ## Licence
 

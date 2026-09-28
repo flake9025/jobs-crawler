@@ -139,4 +139,10 @@ export const SEED_COMPANIES = [
   { name: "Copro Expertises", site: "https://www.coproexpertises.fr" },
   { name: "Preventimmo", site: "https://www.preventimmo.fr" },
   { name: "Smart Service Connect", site: "https://www.smartserviceconnect.com" },
+
+  // --- Employeurs publics locaux ---
+  // Leur site est repris par de nombreuses fiches OpenStreetMap (musées, lignes de bus…) :
+  // ces fiches désignent l'employeur auquel rattacher les offres.
+  { name: "Lignes d'Azur", site: "https://www.lignesdazur.com", city: "Nice" },
+  { name: "Mairie de Vallauris Golfe-Juan", site: "https://www.vallauris-golfe-juan.fr", city: "Vallauris" },
 ];
