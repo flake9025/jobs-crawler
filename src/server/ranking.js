@@ -1,4 +1,4 @@
-import { normalizeText, tokenize } from "./util.js";
+import { normalizeText, textHasToken, tokenize } from "./util.js";
 import { SOPHIA_GEO } from "../data/companies.js";
 import { employerMatches } from "./sources/companies.js";
 
@@ -27,7 +27,7 @@ export function scoreJob(job, query) {
   let titleHits = 0;
   let employerHits = 0;
   qTokens.forEach((tok, i) => {
-    if (title.includes(tok)) titleHits++;
+    if (textHasToken(title, tok)) titleHits++;
     else if (employer.has(i)) employerHits++;
   });
   score += ((titleHits + employerHits * 0.8) / qTokens.length) * 55;
@@ -38,7 +38,7 @@ export function scoreJob(job, query) {
   // Description.
   let descHits = 0;
   for (const tok of qTokens) {
-    if (desc.includes(tok)) descHits++;
+    if (textHasToken(desc, tok)) descHits++;
   }
   score += (descHits / qTokens.length) * 15;
 

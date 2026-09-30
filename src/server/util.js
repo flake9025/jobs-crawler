@@ -164,6 +164,56 @@ export function tokenize(str = "") {
     .filter((t) => t.length > 1);
 }
 
+// Équivalences français ↔ anglais (formes normalisées, sans accents) : beaucoup
+// d'employeurs de la technopole publient leurs offres en anglais, une recherche
+// « architecte » doit trouver « Software Architect ». La comparaison se fait par
+// inclusion : « architect » couvre aussi « architecte », « developpeur » couvre
+// « developpeurs »…
+const TERM_GROUPS = [
+  ["architecte", "architect"],
+  ["developpeur", "developpeuse", "developer"],
+  ["developpement", "development"],
+  ["ingenieur", "engineer"],
+  ["ingenierie", "engineering"],
+  ["testeur", "testeuse", "tester"],
+  ["technicien", "technicienne", "technician"],
+  ["analyste", "analyst"],
+  ["stagiaire", "stage", "intern"],
+  ["alternance", "alternant", "apprenti", "apprentice"],
+  ["logiciel", "software"],
+  ["donnees", "data"],
+  ["securite", "security"],
+  ["reseau", "network"],
+  ["systeme", "system"],
+  ["projet", "project"],
+  ["produit", "product"],
+  ["qualite", "quality"],
+  ["recherche", "research"],
+  ["embarque", "embedded"],
+  ["directeur", "directrice", "director"],
+  ["concepteur", "conceptrice", "designer"],
+  ["commercial", "commerciale", "sales"],
+  ["comptable", "accountant"],
+  ["juriste", "lawyer", "legal"],
+  ["assistant", "assistante"],
+];
+
+const TERM_VARIANTS = new Map();
+for (const group of TERM_GROUPS) {
+  for (const term of group) TERM_VARIANTS.set(term, group);
+}
+
+/** Variantes d'un token de recherche (lui-même inclus), ex. architecte → [architecte, architect]. */
+export function tokenVariants(token) {
+  const group = TERM_VARIANTS.get(token) || TERM_VARIANTS.get(token.replace(/s$/, ""));
+  return group ? [token, ...group.filter((t) => t !== token)] : [token];
+}
+
+/** Le texte (déjà normalisé) contient-il le token ou l'une de ses équivalences ? */
+export function textHasToken(text, token) {
+  return tokenVariants(token).some((v) => text.includes(v));
+}
+
 /** Mots d'un nom d'entreprise (minuscules, sans accents ni ponctuation). */
 export function nameWords(name = "") {
   return normalizeText(name)

@@ -4,6 +4,7 @@ import {
   normalizeJob,
   tokenize,
   normalizeText,
+  textHasToken,
   nameWords,
   parseLooseDate,
 } from "../util.js";
@@ -994,7 +995,7 @@ export function searchCompanyCache(cachedJobs, query) {
   return cachedJobs.filter((j) => {
     const title = normalizeText(j.title);
     const employer = employerMatches(j.company, tokens);
-    return significant.every((i) => title.includes(tokens[i]) || employer.has(i));
+    return significant.every((i) => textHasToken(title, tokens[i]) || employer.has(i));
   });
 }
 
