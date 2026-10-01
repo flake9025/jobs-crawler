@@ -5,11 +5,13 @@ avec un backend Node.js. Il combine les grandes sources nationales et le crawl d
 des sites d'entreprises de la technopole — y compris celles qui **ne publient jamais**
 sur LinkedIn, l'APEC ou France Travail.
 
+**Site en ligne : [jobs.vvlabs.fr](https://jobs.vvlabs.fr/)**
+
 ## Fonctionnalités
 
 - **Recherche agrégée** : API France Travail + agrégateurs (Welcome to the Jungle, HelloWork, APEC)
   + offres détectées directement sur les sites des entreprises locales.
-- **Annuaire de ~7 300 entreprises** de la technopole, dont ~1 950 sites crawlés en continu.
+- **Annuaire de ~7 200 entreprises et établissements**, dont ~1 800 sites crawlés en continu.
 - **Onglet « Entreprises »** : sélection éditoriale des employeurs emblématiques de la technopole
   (grands employeurs, startups, grandes ESN, ESN montantes). Chaque fiche affiche le nombre
   d'offres détectées sur le site carrières, un bouton **« Voir les offres »** (recherche en
@@ -30,11 +32,15 @@ sur LinkedIn, l'APEC ou France Travail.
   marquée candidatée ou ignorée (stockage local navigateur, aucun compte requis) ; elles restent
   grisées lors des prochaines visites, et les ignorées peuvent être masquées.
 - **Filtres** : niveau d'expérience (débutant / confirmé / expert), type de contrat
-  (CDI, CDD, Alternance, Stage, Freelance, Intérim).
+  (CDI, CDD, Alternance, Stage, Freelance, Intérim) et zone (**Alpes-Maritimes** ou
+  **Monaco**, avec une catégorie pour les lieux non précisés). Une offre située dans
+  les deux zones apparaît dans chacun de ces filtres, sans être dupliquée. Ces filtres
+  s'appliquent à l'affichage et à l'export ; les alertes restent fondées sur les mots-clés
+  et/ou l'entreprise suivie.
 - **Tris** : pertinence, fraîcheur (offres les plus récentes), entreprise.
 - **Page de statut** (`/status.html`) : progression du crawl en temps réel, couverture
   du catalogue, entreprises qui recrutent le plus, annuaire complet consultable.
-- **Export Excel** des résultats filtrés (avec le statut de chaque offre).
+- **Export Excel** des résultats filtrés (avec la zone et le statut de chaque offre).
 - **PWA** installable, avec service worker (interface disponible hors ligne, notifications).
 - **Toujours à jour** : chaque fichier de l'interface est revalidé à chaque chargement
   (`Cache-Control: no-cache`, 304 s'il n'a pas changé), et une page restée ouverte affiche
@@ -51,6 +57,8 @@ npm start                # http://localhost:8080
 ```
 
 En développement : `npm run dev` (rechargement automatique).
+
+Contrôles de régression : `npm test` (runner intégré à Node.js, sans accès réseau).
 
 ### Docker / NAS
 
@@ -77,7 +85,7 @@ Toutes les options passent par variables d'environnement (voir `.env.example`).
 | `CACHE_FILE` | `/app/data/companies-cache.json` | Fichier de persistance du cache |
 | `ALERTS_FILE` | `/app/data/alerts.json` | Fichier de persistance des alertes (recherches sauvegardées) |
 | `ALERTS_CHECK_MINUTES` | `30` | Intervalle entre deux vérifications des alertes (en plus de la vérification après chaque crawl) |
-| `PUBLIC_URL` | — | Adresse publique de l'application (ex. `https://jobs.mondomaine.fr`) : liens « Ouvrir dans Sophia Jobs » et « Se désabonner » des emails |
+| `PUBLIC_URL` | — | Adresse publique de l'application (`https://jobs.vvlabs.fr` pour le site déployé) : liens « Ouvrir dans Sophia Jobs » et « Se désabonner » des emails |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — | Serveur SMTP pour les alertes email (désactivées si absent) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CONTACT_EMAIL` | — | Clés pour les notifications push (générées par `npm run vapid:generate`) |
 
@@ -108,9 +116,9 @@ Activer les notifications sur le NAS Synology :
    ainsi que `VAPID_CONTACT_EMAIL` (votre adresse), dans `/volume1/docker/apps/sophia-jobs/.env`.
    Pas dans les secrets GitHub : l'image publiée sur GHCR reste générique et ne contient aucune clé.
 2. Exposer l'application en HTTPS : *Panneau de configuration → Portail de connexion → Avancé →
-   Proxy inversé* (source `https://jobs.mondomaine.fr:443` → destination `http://localhost:8082`),
+   Proxy inversé* (source `https://jobs.vvlabs.fr:443` → destination `http://localhost:8082`),
    avec un certificat Let's Encrypt (*Sécurité → Certificat*).
-3. Renseigner `PUBLIC_URL=https://jobs.mondomaine.fr`, puis recréer le conteneur en relançant le
+3. Renseigner `PUBLIC_URL=https://jobs.vvlabs.fr`, puis recréer le conteneur en relançant le
    déploiement : un simple redémarrage ne relit pas le `.env` (`docker run --env-file`). Au démarrage,
    le journal indique « Alertes push : activées », ou pourquoi les clés ont été refusées.
 
@@ -187,7 +195,7 @@ dans l'IndexedDB du navigateur ; rien n'est envoyé au serveur de Sophia Jobs.
 src/
   data/
     companies-seed.js     liste curatée (sites vérifiés à la main)
-    companies.json        annuaire généré (commité, ~7 300 entreprises)
+    companies.json        annuaire généré (commité, ~7 100 entreprises et établissements)
     companies.js          fusion vedettes + seed + annuaire, dédoublonnage par nom et alias
     featured-companies.js sélection éditoriale (grands employeurs, startups, ESN) : pages d'offres vérifiées
   server/
@@ -296,6 +304,9 @@ en premier, instantané toutes les 200 entreprises).
 | `GET /api/version` | Version, build et date de livraison (pied de page) |
 | `GET /api/health` | Sonde de santé |
 
+Chaque offre renvoyée par la recherche expose `locationZones` : `["alpes-maritimes"]`,
+`["monaco"]`, les deux valeurs pour une offre multi-sites, ou `[]` si la zone est inconnue.
+
 Statuts possibles d'une entreprise : `ok` (offres détectées), `no-offer` (site analysé,
 aucune offre publiée), `unreachable` (site injoignable), `error` (erreur d'analyse),
 `pending` (pas encore analysée), `link-only` (site non analysable automatiquement, à
@@ -313,6 +324,22 @@ Fusionne trois sources publiques et réécrit `src/data/companies.json` :
    technopole : nom, description, filière).
 2. **ville-valbonne.fr** — annuaire municipal, qui fournit les **sites web**.
 3. **OpenStreetMap** (Overpass) — établissements géolocalisés de la zone avec un site web.
+
+Seuls les **employeurs et établissements de tous secteurs** sont retenus : entreprises,
+commerces, hôtels, santé, enseignement, culture, associations et organismes publics.
+Les lignes et arrêts de transport, parkings, bornes, œuvres isolées, territoires et
+itinéraires touristiques ne sont pas des recruteurs et sont écartés. Les musées, mairies,
+exploitants et autres structures qui les gèrent restent admissibles.
+
+Le nettoyage s'applique aussi à l'annuaire déjà généré, **sans accès réseau** :
+
+```bash
+npm run fetch:companies -- --resume
+```
+
+Les fiches retirées et leurs offres sont purgées du cache au démarrage suivant. Un site
+temporairement inaccessible ne suffit pas à exclure un véritable employeur. Le périmètre
+des offres reste celui des Alpes-Maritimes et de Monaco.
 
 Options :
 
@@ -347,7 +374,7 @@ transparence, la barre étant calculée sur les entreprises **réellement crawla
 
 ## Robustesse du crawl
 
-Un crawl complet dure une dizaine de minutes et touche près de 2 000 sites tiers. Trois
+Un crawl complet dure une dizaine de minutes et touche environ 1 800 sites tiers. Trois
 protections évitent de tout perdre en cours de route :
 
 - **Checkpoints** : le cache est persisté toutes les 200 entreprises. Les offres déjà

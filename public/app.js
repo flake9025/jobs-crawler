@@ -20,6 +20,7 @@ const exportBtn = el("export-btn");
 const filtersEl = el("filters");
 const filterLevel = el("filter-level");
 const filterContract = el("filter-contract");
+const filterZone = el("filter-zone");
 const sortBy = el("sort-by");
 const hideIgnored = el("hide-ignored");
 const resetFilters = el("reset-filters");
@@ -181,6 +182,7 @@ window.addEventListener("storage", (e) => {
 // Cartes d'offres
 // ---------------------------------------------------------------------------
 const LEVEL_LABELS = { debutant: "Débutant", confirme: "Confirmé", expert: "Expert" };
+const ZONE_LABELS = { "alpes-maritimes": "Alpes-Maritimes (06)", monaco: "Monaco" };
 
 function sourceLabel(job) {
   const s = job.source || "";
@@ -272,6 +274,7 @@ hideIgnored.checked = store.get("sophia-jobs:hide-ignored", false);
 function filteredJobs() {
   const level = filterLevel.value;
   const contract = filterContract.value;
+  const zone = filterZone.value;
   const sort = sortBy.value;
 
   let jobs = state.allJobs.filter((j) => {
@@ -279,6 +282,9 @@ function filteredJobs() {
     if (level && level !== "inconnu" && j.experienceLevel !== level) return false;
     if (contract === "inconnu" && j.contractType) return false;
     if (contract && contract !== "inconnu" && j.contractType !== contract) return false;
+    const zones = j.locationZones || [];
+    if (zone === "inconnu" && zones.length) return false;
+    if (zone && zone !== "inconnu" && !zones.includes(zone)) return false;
     return true;
   });
 
@@ -326,7 +332,7 @@ function renderJobs() {
   resultsCount.textContent = plural(jobs.length, "offre");
   resultsContext.textContent = context.join(" ");
   exportBtn.disabled = jobs.length === 0;
-  resetFilters.hidden = !(filterLevel.value || filterContract.value || sortBy.value !== "score");
+  resetFilters.hidden = !(filterLevel.value || filterContract.value || filterZone.value || sortBy.value !== "score");
 }
 
 /** Décompte par option, pour guider le choix des filtres. */
@@ -346,9 +352,14 @@ function updateFilterCounts() {
     else if (option.value === "inconnu") label(option, count((j) => !j.contractType));
     else label(option, count((j) => j.contractType === option.value));
   }
+  for (const option of filterZone.options) {
+    if (!option.value) label(option, state.allJobs.length);
+    else if (option.value === "inconnu") label(option, count((j) => !j.locationZones?.length));
+    else label(option, count((j) => j.locationZones?.includes(option.value)));
+  }
 }
 
-for (const node of [filterLevel, filterContract, sortBy]) node.addEventListener("change", renderJobs);
+for (const node of [filterLevel, filterContract, filterZone, sortBy]) node.addEventListener("change", renderJobs);
 
 hideIgnored.addEventListener("change", () => {
   store.set("sophia-jobs:hide-ignored", hideIgnored.checked);
@@ -358,6 +369,7 @@ hideIgnored.addEventListener("change", () => {
 resetFilters.addEventListener("click", () => {
   filterLevel.value = "";
   filterContract.value = "";
+  filterZone.value = "";
   sortBy.value = "score";
   renderJobs();
 });
@@ -572,6 +584,7 @@ exportBtn.addEventListener("click", () => {
     "Intitulé": j.title || "",
     "Entreprise": j.company && j.company !== "N/C" ? j.company : "",
     "Lieu": j.location || "",
+    "Zone": (j.locationZones || []).map((zone) => ZONE_LABELS[zone]).join(" / ") || "Non précisée",
     "Contrat": j.contractType || "",
     "Niveau": LEVEL_LABELS[j.experienceLevel] || "",
     "Expérience": j.experience || "",
@@ -582,7 +595,7 @@ exportBtn.addEventListener("click", () => {
     "Lien pour postuler": j.url || "",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [45, 24, 20, 14, 12, 16, 12, 14, 12, 22, 55].map((wch) => ({ wch }));
+  ws["!cols"] = [45, 24, 20, 26, 14, 12, 16, 12, 14, 12, 22, 55].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Offres");
   const name = normalize([state.company, state.query].filter(Boolean).join(" ") || "recherche")

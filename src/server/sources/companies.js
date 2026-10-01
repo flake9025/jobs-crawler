@@ -8,7 +8,7 @@ import {
   nameWords,
   parseLooseDate,
 } from "../util.js";
-import { detectLocation } from "../geo.js";
+import { detectLocation, mergeJobLocations } from "../geo.js";
 import { detectAts, findAtsInPage, fetchAtsCandidates, extractSuccessFactorsRows } from "./ats.js";
 import { SOPHIA_COMPANIES, CRAWLABLE_COMPANIES, careerSitesOf, companyNames, findCompany } from "../../data/companies.js";
 
@@ -355,13 +355,23 @@ function spacedText(node) {
 }
 
 /** Texte du plus petit bloc englobant le lien (carte d'offre : lieu, contrat…). */
-function linkContext($, el) {
+function linkContext($, el, companyWords) {
   let node = $(el).parent();
+  const ownHref = withoutHash($(el).attr("href") || "");
   let context = "";
   for (let depth = 0; depth < 4 && node.length; depth++) {
     const text = spacedText(node);
     if (text.length > 400) break;
+    // Le lieu d'une carte voisine ne doit pas localiser cette offre.
+    const otherOffer = node.find("a[href]").toArray().some((other) => {
+      const href = $(other).attr("href") || "";
+      if (other === el || withoutHash(href) === ownHref) return false;
+      const kind = classifyTitle(spacedText($(other)), companyWords);
+      return kind === "offer" || (kind !== "reject" && OFFER_PATH_RE.test(normalize(href)));
+    });
+    if (otherOffer) break;
     context = text;
+    if (node.is("article, li, tr")) break;
     node = node.parent();
   }
   return context;
@@ -467,7 +477,7 @@ function extractCandidates($, pageUrl, isCareerPage, companyWords) {
       weak = !(OFFER_PATH_RE.test(path) || slugs.some((s) => OFFER_SLUG_RE.test(s)));
     }
 
-    candidates.push({ title: text, url: full, context: linkContext($, el), weak, marked: kind === "offer" });
+    candidates.push({ title: text, url: full, context: linkContext($, el, companyWords), weak, marked: kind === "offer" });
   });
   return candidates;
 }
@@ -546,31 +556,43 @@ function buildOffers(candidates, company, branch = false) {
   const strict = Boolean(company.localOnly) || branch;
   const distant = located.filter((x) => x.place.verdict === "distant").length;
   const multiSite = strict || distant >= Math.max(2, located.length * 0.25);
-  const fallbackLocation = detectLocation([company.city]).label || "Sophia Antipolis";
+  const fallbackPlace = detectLocation([company.city]);
   const byTitle = new Map();
   for (const { c, parts, place } of located) {
     if (place.verdict === "distant") continue;
     // Lieu limité à « Provence-Alpes-Côte d'Azur » : accepté, sauf en mode strict.
     const regional = place.region && !strict;
     if (multiSite && place.verdict !== "local" && !regional && !c.trusted) continue;
-    const key = normalize(c.title).replace(/[^a-z0-9]+/g, " ").trim();
-    if (!key || byTitle.has(key)) continue;
+    const titleKey = normalize(c.title).replace(/[^a-z0-9]+/g, " ").trim();
+    const locationZones = place.zones || (place.region ? [] : fallbackPlace.zones || []);
+    const key = `${titleKey}::${locationZones.join("+")}`;
+    if (!titleKey || byTitle.has(key)) continue;
+    const location =
+      locationZones.length > 1
+        ? "Alpes-Maritimes / Monaco"
+        : preciseLocalLabel(place, parts) ||
+          (place.verdict === "local"
+            ? "Alpes-Maritimes"
+            : place.region ? "Provence-Alpes-Côte d'Azur" : fallbackPlace.label || "Non précisé");
     byTitle.set(
       key,
-      normalizeJob({
-        title: c.title,
-        company: company.name,
-        location: preciseLocalLabel(place, parts) || fallbackLocation,
-        url: c.url,
-        source: `Entreprise: ${company.name}`,
-        date: parseLooseDate(c.date),
-        // Fournis par certains ATS ; à défaut, déduits de l'intitulé.
-        contractType: c.contractType || null,
-        experience: c.experience || null,
-      })
+      {
+        ...normalizeJob({
+          title: c.title,
+          company: company.name,
+          location,
+          url: c.url,
+          source: `Entreprise: ${company.name}`,
+          date: parseLooseDate(c.date),
+          // Fournis par certains ATS ; à défaut, déduits de l'intitulé.
+          contractType: c.contractType || null,
+          experience: c.experience || null,
+        }),
+        locationZones,
+      }
     );
   }
-  return [...byTitle.values()];
+  return mergeJobLocations([...byTitle.values()]);
 }
 
 /** « Valbonne » plutôt que « Alpes-Maritimes » quand un autre indice précise la commune. */

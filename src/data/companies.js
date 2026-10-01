@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SEED_COMPANIES } from "./companies-seed.js";
 import { FEATURED_COMPANIES } from "./featured-companies.js";
+import { isEmployerCompany } from "./employer-places.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,7 +36,8 @@ function loadDirectory() {
   const file = path.join(__dirname, "companies.json");
   try {
     const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
-    return Array.isArray(parsed) ? parsed : parsed.companies || [];
+    const companies = Array.isArray(parsed) ? parsed : parsed.companies || [];
+    return companies.filter(isEmployerCompany);
   } catch {
     return [];
   }

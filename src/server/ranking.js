@@ -1,6 +1,7 @@
 import { normalizeText, textHasToken, tokenize } from "./util.js";
 import { SOPHIA_GEO } from "../data/companies.js";
 import { employerMatches } from "./sources/companies.js";
+import { mergeJobLocations } from "./geo.js";
 
 /**
  * Calcule un score de pertinence [0..100] d'une offre par rapport à la requête.
@@ -60,11 +61,11 @@ export function scoreJob(job, query) {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-/** Clé de déduplication : titre + entreprise normalisés (ou URL). */
+/** Même intitulé à Nice et à Monaco : deux postes distincts s'ils ont des URLs différentes. */
 function dedupeKey(job) {
   const t = normalizeText(job.title).replace(/[^a-z0-9]/g, "");
   const c = normalizeText(job.company).replace(/[^a-z0-9]/g, "");
-  if (t && c) return `${t}::${c}`;
+  if (t && c) return `${t}::${c}::${job.locationZones.join("+")}`;
   return job.url;
 }
 
@@ -79,7 +80,7 @@ export function rankJobs(jobs, query, { minScore = 15 } = {}) {
 
   // Déduplication : on garde le meilleur score par clé.
   const byKey = new Map();
-  for (const j of scored) {
+  for (const j of mergeJobLocations(scored)) {
     const k = dedupeKey(j);
     const existing = byKey.get(k);
     if (!existing || j.score > existing.score) byKey.set(k, j);

@@ -5,10 +5,10 @@ import { normalizeText } from "./util.js";
  *
  * Les sites des grands groupes mélangent souvent les offres de toute la France
  * (voire du monde) : on étiquette la commune quand elle est reconnue et on écarte
- * les offres explicitement situées hors des Alpes-Maritimes.
+ * les offres explicitement situées hors des Alpes-Maritimes et de Monaco.
  */
 
-// Communes des Alpes-Maritimes (et Monaco, enclavée dans le département), par ordre
+// Communes des Alpes-Maritimes et de Monaco, par ordre
 // de priorité d'affichage.
 // [libellé affiché, ...variantes d'écriture]
 const LOCAL_PLACES = [
@@ -55,7 +55,7 @@ const LOCAL_PLACES = [
   ["Beausoleil", "beausoleil"],
   ["Roquebrune-Cap-Martin", "roquebrune cap martin"],
   ["Menton", "menton"],
-  ["Monaco", "monaco"],
+  ["Monaco", "monaco", "monte carlo"],
   ["Saint-Vallier-de-Thiey", "saint vallier de thiey"],
   ["Puget-Théniers", "puget theniers"],
   ["Alpes-Maritimes", "alpes maritimes", "cote d azur"],
@@ -115,6 +115,7 @@ const REGION_ALL_RE = new RegExp(REGION_RE.source, "g");
 
 const LOCAL_KEYS = LOCAL_PLACES.map(([label, ...variants]) => ({
   label,
+  zone: label === "Monaco" ? "monaco" : "alpes-maritimes",
   keys: variants.map((v) => pad(v)),
 }));
 const DISTANT_KEYS = DISTANT_PLACES.map((p) => pad(p));
@@ -126,10 +127,29 @@ function classifyPart(part) {
   // on la signale toutefois : « PACA » vaut mieux qu'un lieu inconnu.
   const region = REGION_RE.test(padded);
   const text = padded.replace(REGION_ALL_RE, " ");
-  for (const place of LOCAL_KEYS) {
-    if (place.keys.some((k) => text.includes(k))) return { verdict: "local", label: place.label };
+  const monteCarloMethod = /\b(?:simulat\w*|method\w*|algorithm\w*|markov|mcmc)\b/.test(text);
+  const places = LOCAL_KEYS.filter((place) => place.keys.some(
+    (key) => text.includes(key) && (key !== " monte carlo " || !monteCarloMethod)
+  ));
+  const precise = places.filter((place) => place.label !== "Alpes-Maritimes");
+  // Un identifiant /jobs/98000 n'est pas un code postal.
+  const address = !/^(?:https?:\/\/|\/)/i.test(part.trim());
+  const monaco = places.some((place) => place.zone === "monaco") || (address && / 980\d{2} /.test(text));
+  const alpesMaritimes =
+    precise.some((place) => place.zone === "alpes-maritimes") ||
+    (address && (/ 06\d{3} /.test(text) || /\(06\)/.test(part))) ||
+    (!monaco && places.some((place) => place.label === "Alpes-Maritimes"));
+  const zones = [
+    ...(alpesMaritimes ? ["alpes-maritimes"] : []),
+    ...(monaco ? ["monaco"] : []),
+  ];
+  if (zones.length) {
+    return {
+      verdict: "local",
+      label: precise[0]?.label || (monaco ? "Monaco" : places[0]?.label || null),
+      zones,
+    };
   }
-  if (/ 06\d{3} /.test(text) || /\(06\)/.test(part)) return { verdict: "local", label: null };
   if (DISTANT_KEYS.some((k) => text.includes(k))) return { verdict: "distant", label: null };
   return { verdict: "unknown", label: null, region };
 }
@@ -140,7 +160,7 @@ function classifyPart(part) {
  * l'emporte : un intitulé « … Paris » n'est pas repêché par l'adresse du siège
  * mentionnée plus loin dans la page.
  *
- * @returns {{verdict: "local"|"distant"|"unknown", label: string|null, region?: boolean}}
+ * @returns {{verdict: "local"|"distant"|"unknown", label: string|null, zones?: string[], region?: boolean}}
  *   `region` : lieu inconnu mais situé en Provence-Alpes-Côte d'Azur.
  */
 export function detectLocation(parts = []) {
@@ -153,7 +173,40 @@ export function detectLocation(parts = []) {
   return { verdict: "unknown", label: null, region };
 }
 
-/** Le libellé (facette ATS, champ lieu) désigne-t-il une commune des Alpes-Maritimes ? */
+/** Le libellé (facette ATS, champ lieu) désigne-t-il les Alpes-Maritimes ou Monaco ? */
 export function isLocalPlace(text) {
   return classifyPart(text).verdict === "local";
+}
+
+/** Le champ explicite prime, même vide ; les anciens caches ne stockaient que le lieu. */
+export function jobLocationZones(job) {
+  return job.locationZones ?? detectLocation([job.location]).zones ?? [];
+}
+
+/** Une même URL peut être publiée pour plusieurs lieux : une carte, présente dans chaque zone. */
+export function mergeJobLocations(jobs) {
+  const byUrl = new Map();
+  for (const job of jobs) {
+    const zones = jobLocationZones(job);
+    const existing = byUrl.get(job.url);
+    if (!existing) {
+      byUrl.set(job.url, { ...job, locationZones: [...zones] });
+      continue;
+    }
+    const kept = (job.score ?? -1) > (existing.score ?? -1) ? job : existing;
+    const combined = ["alpes-maritimes", "monaco"].filter(
+      (zone) => existing.locationZones.includes(zone) || zones.includes(zone)
+    );
+    byUrl.set(job.url, {
+      ...kept,
+      locationZones: combined,
+      location:
+        combined.length > 1
+          ? "Alpes-Maritimes / Monaco"
+          : jobLocationZones(kept).length
+            ? kept.location
+            : zones.length ? job.location : existing.location,
+    });
+  }
+  return [...byUrl.values()];
 }

@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server/index.js",
     "dev": "node --watch src/server/index.js",
+    "test": "node --test",
     "fetch:companies": "node scripts/fetch-companies.mjs",
     "vapid:generate": "node scripts/generate-vapid-keys.mjs"
   },

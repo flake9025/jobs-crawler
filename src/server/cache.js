@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config.js";
+import { SOPHIA_COMPANIES } from "../data/companies.js";
 
 /**
  * Cache persistant des offres d'entreprises.
@@ -19,7 +20,8 @@ import { config } from "./config.js";
 
 // À incrémenter quand l'extraction des offres change sensiblement : un cache produit
 // par un crawler antérieur est alors considéré comme périmé et recalculé au démarrage.
-const CACHE_FORMAT = 4;
+const CACHE_FORMAT = 5;
+const COMPANY_NAMES = new Set(SOPHIA_COMPANIES.map((company) => company.name));
 
 let state = {
   format: CACHE_FORMAT,
@@ -44,6 +46,18 @@ export async function loadCache() {
     state.partial = Boolean(parsed.partial);
     state.jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
     state.companies = Array.isArray(parsed.companies) ? parsed.companies : [];
+    const oldJobs = state.jobs.length;
+    const oldCompanies = state.companies.length;
+    state.jobs = state.jobs.filter((job) => COMPANY_NAMES.has(job.company));
+    state.companies = state.companies.filter((company) => COMPANY_NAMES.has(company.name));
+    if (state.jobs.length !== oldJobs || state.companies.length !== oldCompanies) {
+      console.log(
+        `[cache] nettoyage de l'annuaire : ${oldCompanies - state.companies.length} anciennes fiches et ${
+          oldJobs - state.jobs.length
+        } offres retirées.`
+      );
+      await persist();
+    }
     console.log(
       `[cache] chargé : ${state.jobs.length} offres (maj ${state.updatedAt || "jamais"}${
         state.partial ? ", crawl interrompu" : ""

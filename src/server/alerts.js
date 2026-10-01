@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { config } from "./config.js";
 import { performSearch } from "./search.js";
+import { jobLocationZones } from "./geo.js";
 import { sendAlertEmail } from "./mailer.js";
 import { sendPushNotification, isPushEnabled, sanitizePushSubscription } from "./push.js";
 
@@ -87,7 +88,7 @@ function publicView(alert) {
     createdAt: alert.createdAt,
     lastCheckedAt: alert.lastCheckedAt || null,
     lastNotifiedAt: alert.lastNotifiedAt || null,
-    pending: alert.pending,
+    pending: alert.pending.map((job) => ({ ...job, locationZones: jobLocationZones(job) })),
   };
 }
 

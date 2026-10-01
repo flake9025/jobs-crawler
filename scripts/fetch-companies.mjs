@@ -6,6 +6,7 @@
  *     soit plus de 5 000 acteurs de la technopole (noms + description + filières).
  *  2. ville-valbonne.fr — annuaire municipal (type `directory`), qui expose en plus
  *     le SITE WEB de chaque fiche : c'est lui qui permet de crawler les offres.
+ *  3. OpenStreetMap — entreprises et etablissements avec une activite d'employeur.
  *
  * Usage :
  *   npm run fetch:companies                # annuaires uniquement
@@ -19,6 +20,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as cheerio from "cheerio";
+import { isEmployerCompany, isEmployerPlace, osmActivitySectors } from "../src/data/employer-places.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_FILE = path.join(__dirname, "..", "src", "data", "companies.json");
@@ -272,6 +274,7 @@ async function fetchOpenStreetMap() {
 
       const elements = JSON.parse(txt).elements || [];
       const list = elements
+        .filter((el) => isEmployerPlace(el.tags))
         .map((el) => {
           const tags = el.tags || {};
           const site = (tags.website || tags["contact:website"] || "").trim();
@@ -281,16 +284,14 @@ async function fetchOpenStreetMap() {
             name: prettyName(tags.name),
             site: site.replace(/\/$/, ""),
             description: tags.description || "",
-            sectors: [tags.office, tags.industrial, tags.craft, tags.shop, tags.amenity]
-              .filter(Boolean)
-              .slice(0, 2),
+            sectors: osmActivitySectors(tags),
             city: tags["addr:city"] || null,
             sources: ["openstreetmap"],
           };
         })
         .filter(Boolean);
 
-      console.log(`[openstreetmap] ${list.length} établissements avec site web.`);
+      console.log(`[openstreetmap] ${list.length} employeurs avec site web (points d'intérêt exclus).`);
       return list;
     } catch {
       /* endpoint suivant */
@@ -550,6 +551,13 @@ async function main() {
     // Ordre = priorité : les sources qui fournissent un site web d'abord.
     companies = mergeCompanies([valbonne, osm, sophia]);
   }
+
+  const beforeCleanup = companies.length;
+  companies = companies.filter(isEmployerCompany).map((company) => ({
+    ...company,
+    site: company.site?.trim() || null,
+  }));
+  console.log(`[nettoyage] ${beforeCleanup - companies.length} points d'intérêt sans activité d'employeur retirés.`);
 
   if (LIMIT > 0) companies = companies.slice(0, LIMIT);
 
